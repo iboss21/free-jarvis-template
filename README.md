@@ -1,4 +1,6 @@
-# REGES
+# REGES aka JARVIS
+
+<img width="1920" height="1002" alt="image" src="https://github.com/user-attachments/assets/663c520e-a89d-444b-ac3a-21c7f3e51647" />
 
 Windows-first AI automation agent. Speak, it routes, the vault remembers, the HUD shows.
 
