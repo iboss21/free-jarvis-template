@@ -113,7 +113,8 @@ class LLM:
 
         usage = data.get("usage") or {}
         BUS.add_tokens(usage.get("input_tokens", 0), usage.get("output_tokens", 0),
-                       m.remote_model, billable=True)
+                       m.remote_model, billable=True,
+                       cache_read=usage.get("cache_read_input_tokens", 0) or 0)
         return text
 
     # -- transport ---------------------------------------------------------- #

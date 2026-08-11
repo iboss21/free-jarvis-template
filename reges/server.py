@@ -79,7 +79,13 @@ class RegesHandler(BaseHTTPRequestHandler):
         return self._static(path)
 
     def _static(self, path: str) -> None:
-        rel = "index.html" if path in ("/", "") else path.lstrip("/")
+        if path in ("/", ""):
+            # A first-time buyer should meet a setup screen, not a cockpit.
+            done = (getattr(self.cfg, "setup_complete", False)
+                    or getattr(self.cfg, "onboarded", False))
+            rel = "index.html" if done else "welcome.html"
+        else:
+            rel = path.lstrip("/")
         target = (HUD_DIR / rel).resolve()
         try:
             target.relative_to(HUD_DIR)
@@ -99,6 +105,8 @@ class RegesHandler(BaseHTTPRequestHandler):
                 "colors": a.colors,
                 "orb_density": a.orb_density,
                 "orb_speed": getattr(a, "orb_speed", 1.0),
+                "theme": getattr(a, "theme", "obsidian"),
+                "orb_variant": getattr(a, "orb_variant", "lattice"),
                 "reduce_motion": a.reduce_motion,
                 "ptt": f"{self.cfg.voice.ptt_modifier}+{self.cfg.voice.ptt_hotkey}",
             })
@@ -114,6 +122,32 @@ class RegesHandler(BaseHTTPRequestHandler):
         if path == "/api/apps":
             from .settings_api import list_apps
             return self._json(list_apps())
+        if path == "/api/hardware":
+            from .settings_api import get_hardware
+            return self._json(get_hardware())
+        if path == "/api/pricing":
+            from .settings_api import get_pricing
+            return self._json(get_pricing(self.cfg))
+        if path == "/api/setup/preflight":
+            from .setup_api import preflight
+            return self._json(preflight(self.cfg.paths.app_dir))
+        if path == "/api/setup/dirs":
+            from .setup_api import suggested_dirs
+            return self._json(suggested_dirs(self.cfg.paths.app_dir))
+        if path == "/api/setup/catalog":
+            from .models_catalog import GPU_TIERS, detect_gpu, listing, recommend
+            gpu = detect_gpu()
+            return self._json({
+                "models": listing(), "gpu": gpu, "tiers": [
+                    {"label": l, "vram": v, "note": n} for l, v, n in GPU_TIERS],
+                "recommended": recommend(gpu["vram_gb"]),
+            })
+        if path.startswith("/api/setup/job/"):
+            from .setup_api import job_status
+            return self._json(job_status(path.rsplit("/", 1)[-1]))
+        if path == "/api/setup/local-models":
+            from .setup_api import local_models
+            return self._json({"models": local_models(self.cfg.paths.models_dir)})
         if path == "/api/voice/status":
             from .voice.engines import capabilities
             from pathlib import Path as _P
@@ -144,6 +178,88 @@ class RegesHandler(BaseHTTPRequestHandler):
         finally:
             BUS.unsubscribe(q)
 
+    # -- setup ------------------------------------------------------------- #
+    def _setup_post(self, action: str, data: dict) -> None:
+        from . import setup_api as su
+        try:
+            if action == "install":
+                return self._json(su.install_packages(data.get("packages") or []))
+            if action == "download":
+                return self._json(su.download_model(
+                    data.get("file", ""),
+                    data.get("dest") or self.cfg.paths.models_dir))
+            if action == "folders":
+                return self._json(su.make_folders(
+                    data.get("app", ""), data.get("vault", ""), data.get("models", "")))
+            if action == "recommend":
+                from .models_catalog import recommend
+                return self._json(recommend(float(data.get("vram_gb") or 0)))
+            if action == "cancel":
+                return self._json(su.cancel_job(data.get("job", "")))
+            if action == "finish":
+                return self._json(self._setup_finish(data))
+        except Exception as exc:
+            return self._json({"ok": False, "error": str(exc)[:400]}, 500)
+        return self._json({"error": "unknown setup action"}, 404)
+
+    def _setup_finish(self, data: dict) -> dict:
+        """Write everything the wizard collected, then declare the box live."""
+        from . import config as cfg_mod
+        cfg = self.cfg
+        paths = data.get("paths") or {}
+        if paths.get("app"):
+            cfg.paths.app_dir = paths["app"]
+        if paths.get("vault"):
+            cfg.paths.vault_dir = paths["vault"]
+        if paths.get("models"):
+            cfg.paths.models_dir = paths["models"]
+            cfg.paths.logs_dir = str(Path(cfg.paths.app_dir) / "logs")
+
+        m = data.get("model") or {}
+        if m.get("local_base_url"):
+            cfg.models.local_base_url = m["local_base_url"]
+        if m.get("local_model"):
+            cfg.models.local_model = m["local_model"]
+        if "remote_enabled" in m:
+            cfg.models.remote_enabled = bool(m["remote_enabled"])
+        if m.get("remote_model"):
+            cfg.models.remote_model = m["remote_model"]
+        for f in ("router_tier", "reasoning_tier"):
+            if m.get(f):
+                setattr(cfg.models, f, m[f])
+
+        key, key_for = (data.get("api_key") or "").strip(), (data.get("api_key_provider") or "").strip()
+        if key and key_for:
+            from .providers import get as get_provider
+            from .settings_api import _secrets
+            p = get_provider(key_for)
+            if p and p.secret_key:
+                _secrets(cfg).set(p.secret_key, key)
+
+        ap = data.get("appearance") or {}
+        for f, cast in (("orb_speed", float), ("orb_density", int)):
+            if f in ap:
+                try:
+                    setattr(cfg.appearance, f, cast(ap[f]))
+                except (TypeError, ValueError):
+                    pass
+        for f in ("theme", "orb_variant"):
+            if ap.get(f):
+                setattr(cfg.appearance, f, str(ap[f]))
+        if "reduce_motion" in ap:
+            cfg.appearance.reduce_motion = bool(ap["reduce_motion"])
+
+        v = data.get("voice") or {}
+        cfg.voice.enabled = bool(v.get("enabled", False))
+        if v.get("stt_language"):
+            cfg.voice.stt_language = str(v["stt_language"])
+        cfg.setup_complete = True
+
+        src = getattr(cfg, "_source_path", None)
+        path = cfg_mod.save(cfg, Path(src)) if src else cfg_mod.save(cfg)
+        BUS.log("skill", "setup complete — Reges is live")
+        return {"ok": True, "saved_to": str(path), "hud": "/"}
+
     # -- voice ------------------------------------------------------------- #
     def _voice_stt(self) -> None:
         """Raw audio in, text out. The clip never leaves this machine."""
@@ -157,9 +273,13 @@ class RegesHandler(BaseHTTPRequestHandler):
         lang = self.headers.get("X-Reges-Lang") or None
         from .voice.engines import VoiceError, transcribe
         dev = getattr(self.cfg.voice, "stt_device", "auto") or "auto"
+        # Header wins (per-request override), then config, then English.
+        lang = lang or getattr(self.cfg.voice, "stt_language", "en") or "en"
+        size = getattr(self.cfg.voice, "stt_model_size", "base") or "base"
         try:
             with BUS.during(State.LISTENING, "transcribing"):
-                out = transcribe(audio, mime, language=lang, device=dev)
+                out = transcribe(audio, mime, language=lang, device=dev,
+                                 model_size=size)
         except VoiceError as exc:
             BUS.error(str(exc))
             return self._json({"ok": False, "error": str(exc)}, 503)
@@ -168,7 +288,14 @@ class RegesHandler(BaseHTTPRequestHandler):
             return self._json({"ok": False, "error": str(exc)[:300]}, 500)
         if out.get("fallback"):
             BUS.log("warn", out["fallback"][:180])
-        BUS.log("voice", f'heard [{out.get("device","cpu")}]: "{out.get("text","")[:70]}"')
+        if not (out.get("text") or "").strip():
+            BUS.log("voice", "heard nothing — try holding the key a little longer")
+            return self._json({"ok": True, **out})
+        tag = out.get("language", "")
+        if not out.get("language_forced"):
+            conf = out.get("language_confidence")
+            tag += f" auto{f' {int(conf*100)}%' if conf else ''}"
+        BUS.log("voice", f'heard [{out.get("device","cpu")} · {tag}]: "{out.get("text","")[:70]}"')
         return self._json({"ok": True, **out})
 
     def _voice_tts(self, data: dict) -> None:
@@ -190,9 +317,10 @@ class RegesHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         if not self._guard_origin():
             return self._json({"error": "cross-origin rejected"}, 403)
-        if self.path not in ("/api/intent", "/api/settings", "/api/test",
-                             "/api/models", "/api/apps/action", "/api/ask",
-                             "/api/voice/stt", "/api/voice/tts"):
+        ALLOWED = ("/api/intent", "/api/settings", "/api/test", "/api/models",
+                   "/api/apps/action", "/api/ask", "/api/pricing",
+                   "/api/voice/stt", "/api/voice/tts", "/api/setup")
+        if self.path not in ALLOWED and not self.path.startswith("/api/setup/"):
             return self._json({"error": "unknown endpoint"}, 404)
 
         # Audio is raw bytes, not JSON. Handle it before the JSON parse.
@@ -222,6 +350,20 @@ class RegesHandler(BaseHTTPRequestHandler):
         if self.path == "/api/apps/action":
             from .settings_api import app_action
             return self._json(app_action(data))
+        if self.path == "/api/setup":
+            from .settings_api import save_setup
+            try:
+                return self._json(save_setup(self.cfg, data))
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)[:300]}, 500)
+        if self.path == "/api/pricing":
+            from .settings_api import save_pricing
+            try:
+                return self._json(save_pricing(self.cfg, data))
+            except Exception as exc:
+                return self._json({"ok": False, "error": str(exc)[:300]}, 500)
+        if self.path.startswith("/api/setup/"):
+            return self._setup_post(self.path.rsplit("/", 1)[-1], data)
         if self.path == "/api/voice/tts":
             return self._voice_tts(data)
         if self.path == "/api/ask":
@@ -229,19 +371,31 @@ class RegesHandler(BaseHTTPRequestHandler):
             text = (data.get("text") or "").strip()
             if not text:
                 return self._json({"error": "empty"}, 400)
-            BUS.log("router", f'voice: "{text[:90]}"')
+            BUS.say("user", text)
             try:
                 reply = self.on_intent(text)
             except Exception as exc:
+                BUS.error(str(exc)[:300])
                 return self._json({"ok": False, "error": str(exc)[:300]}, 500)
+            if isinstance(reply, str) and reply.strip():
+                BUS.say("reges", reply)
             return self._json({"ok": True, "reply": reply if isinstance(reply, str) else ""})
 
         text = (data.get("text") or "").strip()
         if not text:
             return self._json({"error": "empty intent"}, 400)
 
-        BUS.log("router", f'intent: "{text[:90]}"')
-        threading.Thread(target=self.on_intent, args=(text,), daemon=True).start()
+        BUS.say("user", text)
+
+        def _run(t: str) -> None:
+            try:
+                reply = self.on_intent(t)
+                if isinstance(reply, str) and reply.strip():
+                    BUS.say("reges", reply)
+            except Exception as exc:
+                BUS.error(str(exc)[:300])
+
+        threading.Thread(target=_run, args=(text,), daemon=True).start()
         return self._json({"ok": True})
 
 

@@ -36,6 +36,8 @@
       <div class="state-label" id="state-label"></div>
     </div>
 
+    <div class="convo" id="convo"></div>
+
     <div class="intent">
       <span>&rsaquo;</span>
       <input id="intent" type="text" autocomplete="off" spellcheck="false"
@@ -61,8 +63,10 @@
     <span class="cost" id="tok-local" title="tokens on your own hardware"></span>
     <div class="gauge-track"><div class="gauge-fill" id="gauge-fill"></div></div>
     <b id="tok-pct">0%</b>
-    <span class="cost" id="tok-cost">$0.0000</span>
+    <span class="cost" id="tok-cost" title="click for the per-model breakdown">$0.00</span>
   </footer>
+  <div id="spend" class="spend"></div>
+  
 
 </div>
 <script type="module" src="app.js"></script>

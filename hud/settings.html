@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>REGES — Settings</title>
+<link rel="stylesheet" href="/theme.css">
 <link rel="stylesheet" href="/styles.css">
 <style>
   html,body{height:auto;overflow-y:auto;overflow-x:hidden}
@@ -141,6 +142,25 @@
   </section>
 
   <section>
+    <h2>PRICING</h2>
+    <div id="price_rows"></div>
+    <div class="row">
+      <label>ADD / OVERRIDE</label>
+      <input id="pr_model" spellcheck="false" placeholder="model id or substring, e.g. gpt-4o">
+    </div>
+    <div class="row">
+      <label>INPUT $/MTOK</label>
+      <input id="pr_in" type="number" step="0.01" min="0" placeholder="0">
+    </div>
+    <div class="row">
+      <label>OUTPUT $/MTOK</label>
+      <input id="pr_out" type="number" step="0.01" min="0" placeholder="0">
+    </div>
+    <div class="bar"><button id="pr_add">ADD RATE</button></div>
+    <div class="note" id="pr_note"></div>
+  </section>
+
+  <section>
     <h2>VOICE</h2>
     <div class="row">
       <label>EARS</label>
@@ -154,6 +174,25 @@
       <label>DEVICE</label>
       <span id="v_dev" style="font-size:12px"></span>
     </div>
+    <div class="row">
+      <label>LANGUAGE</label>
+      <select id="v_lang"></select>
+    </div>
+    <div class="hint">
+      Pin the language you actually speak. Auto-detect guesses from a two-second
+      clip and commits to the guess — that is how English becomes Cyrillic.
+      Choosing English also switches to English-only weights, which cannot
+      output another language at all.
+    </div>
+    <div class="row">
+      <label>ACCURACY</label>
+      <select id="v_size">
+        <option value="tiny">tiny — fastest, roughest</option>
+        <option value="base">base — default</option>
+        <option value="small">small — better, slower on CPU</option>
+        <option value="medium">medium — best, GPU recommended</option>
+      </select>
+    </div>
     <div class="result" id="v_note"></div>
     <div class="note">
       Hold SPACE in the HUD to talk. Audio is transcribed on this machine and
@@ -164,6 +203,14 @@
 
   <section>
     <h2>APPEARANCE — NEURAL ORB</h2>
+    <div class="row">
+      <label>PALETTE</label>
+      <div id="sv-theme" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+    </div>
+    <div class="row">
+      <label>ORB BODY</label>
+      <select id="sv-variant"></select>
+    </div>
     <div class="row">
       <label>SPIN SPEED</label>
       <input id="orb_speed" type="range" min="0" max="2" step="0.05">
@@ -325,7 +372,12 @@ async function save() {
     reasoning_tier: $('reasoning_tier').value,
     offline_fallback: $('offline_fallback').value === 'true',
   };
-  const body = {current: cur, appearance: {
+  const body = {current: cur, voice: {
+    stt_language: $('v_lang') ? $('v_lang').value : 'en',
+    stt_model_size: $('v_size') ? $('v_size').value : 'base',
+  }, appearance: {
+    theme: (window.__ap && window.__ap.theme) || undefined,
+    orb_variant: $('sv-variant') ? $('sv-variant').value : undefined,
     orb_speed: parseFloat($('orb_speed').value),
     orb_density: parseInt($('orb_density').value, 10),
     reduce_motion: $('reduce_motion').value === 'true',
@@ -354,6 +406,21 @@ async function save() {
   $('offline_fallback').value = String(!!c.offline_fallback);
 
   const ap = DATA.appearance || {orb_speed: 1, orb_density: 900, reduce_motion: false};
+  const { THEMES } = await import('/themes.js');
+  const { ORB_VARIANTS } = await import('/orb.js');
+  $('sv-theme').innerHTML = Object.entries(THEMES).map(([id, t]) =>
+    `<div data-t="${id}" title="${t.name} — ${t.tag}" style="width:34px;height:34px;border-radius:50%;cursor:pointer;` +
+    `border:1px solid ${id === (ap.theme||'obsidian') ? '#fff' : 'transparent'};` +
+    `background:radial-gradient(circle at 34% 30%, ${t.accent}, ${t.glow[0]} 58%, ${t.bg})"></div>`).join('');
+  window.__ap = ap;
+  $('sv-theme').onclick = (e) => {
+    const el = e.target.closest('[data-t]'); if (!el) return;
+    ap.theme = el.dataset.t;
+    [...$('sv-theme').children].forEach(c => c.style.borderColor = c === el ? '#fff' : 'transparent');
+  };
+  $('sv-variant').innerHTML = Object.entries(ORB_VARIANTS).map(([id, v]) =>
+    `<option value="${id}">${v.name} — ${v.tag}</option>`).join('');
+  $('sv-variant').value = ap.orb_variant || 'lattice';
   $('orb_speed').value = ap.orb_speed;
   $('orb_density').value = ap.orb_density;
   $('reduce_motion').value = String(!!ap.reduce_motion);
@@ -378,7 +445,41 @@ async function save() {
   $('save').onclick   = save;
   loadApps();
   loadVoice();
+  loadPricing();
+  $('pr_add').onclick = addRate;
 })();
+
+let OVERRIDES = {};
+
+async function loadPricing() {
+  let d;
+  try { d = await api('/api/pricing'); } catch { return; }
+  OVERRIDES = d.overrides || {};
+  const rows = (d.catalog || []).map((r) => {
+    const rate = r.priced ? `$${r.input} in / $${r.output} out per Mtok` : 'unpriced';
+    const tag = r.user ? ' <span class="tag">YOURS</span>' : '';
+    return `<div class="row"><label>${escapeHtml(r.pattern)}${tag}</label>
+      <span style="font-size:12px;opacity:.75">${rate}${r.note ? ' — ' + escapeHtml(r.note) : ''}</span></div>`;
+  }).join('');
+  $('price_rows').innerHTML = rows;
+  $('pr_note').textContent =
+    `Built-in rates verified ${d.verified_on}. A model with no rate is billed at the ` +
+    `fallback and marked "est" — never silently priced wrong. Local models are never charged at all.`;
+}
+
+async function addRate() {
+  const m = $('pr_model').value.trim();
+  if (!m) return;
+  OVERRIDES[m] = {input: parseFloat($('pr_in').value) || 0,
+                  output: parseFloat($('pr_out').value) || 0};
+  const r = await api('/api/pricing', {overrides: OVERRIDES});
+  if (r.ok) { $('pr_model').value = $('pr_in').value = $('pr_out').value = ''; loadPricing(); }
+}
+
+function escapeHtml(t) {
+  return String(t).replace(/[&<>"\']/g, (c) => (
+    {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
 
 async function loadVoice() {
   let v;
@@ -391,6 +492,11 @@ async function loadVoice() {
   $('v_dev').textContent = v.gpu_detected
     ? `${v.device.toUpperCase()}  · GPU detected`
     : `${(v.device || 'cpu').toUpperCase()}  · no GPU detected`;
+  const vc = (DATA.voice || {});
+  $('v_lang').innerHTML = (v.languages || [{code:'en',label:'English'}])
+    .map(l => `<option value="${l.code}">${l.label}</option>`).join('');
+  $('v_lang').value = vc.stt_language || 'en';
+  $('v_size').value = vc.stt_model_size || 'base';
   if (v.cuda_note) show($('v_note'), false, v.cuda_note);
 }
 window.appAct = appAct;

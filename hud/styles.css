@@ -292,3 +292,63 @@ body::after {
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition-duration: 1ms !important; }
 }
+
+
+/* ───────────────────────── conversation ───────────────────────── */
+/* The agent used to answer into the void: the reply went to the vault and a
+   log line, never to the screen. This is where it lands now. */
+
+.convo {
+  width: min(760px, 76%);
+  margin: 0 auto 14px;
+  max-height: 34vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 2px 4px;
+  scrollbar-width: thin;
+  scrollbar-color: #223040 transparent;
+}
+.convo:empty { display: none; }
+.convo::-webkit-scrollbar { width: 5px; }
+.convo::-webkit-scrollbar-thumb { background: #223040; border-radius: 3px; }
+
+.turn { display: flex; gap: 10px; align-items: baseline; line-height: 1.65; }
+.turn .who {
+  flex: 0 0 auto; font-size: 9px; letter-spacing: .2em; opacity: .4;
+  padding-top: 3px; min-width: 46px; text-transform: uppercase;
+}
+.turn .said {
+  flex: 1 1 auto; font-size: 13px; white-space: pre-wrap; word-break: break-word;
+}
+.turn.user .said { opacity: .62; }
+.turn.reges .said { color: var(--ink); }
+.turn.reges .who { color: var(--accent); opacity: .75; }
+.turn.pending .said { opacity: .35; font-style: italic; }
+
+
+/* ───────────────────────── spend breakdown ───────────────────────── */
+
+.spend {
+  position: fixed; right: 18px; bottom: 44px; z-index: 40;
+  background: #080c11; border: 1px solid #1c2430; border-radius: 3px;
+  padding: 12px 14px; min-width: 330px; display: none;
+  font-size: 11px; line-height: 1.9;
+}
+.spend.on { display: block; }
+.spend h4 {
+  margin: 0 0 8px; font-size: 9px; letter-spacing: .24em; opacity: .45;
+  font-weight: 500; text-transform: uppercase;
+}
+.spend .r { display: flex; justify-content: space-between; gap: 16px; }
+.spend .r .m { opacity: .8; }
+.spend .r .v { opacity: .55; font-variant-numeric: tabular-nums; }
+.spend .r.free .v { color: #3ddc84; opacity: .8; }
+.spend .r.est .v { color: #ffab3d; opacity: .85; }
+.spend .tot {
+  margin-top: 8px; padding-top: 8px; border-top: 1px solid #1c2430;
+  display: flex; justify-content: space-between; font-size: 12px;
+}
+.spend .why { margin-top: 8px; opacity: .4; font-size: 10px; line-height: 1.6; }

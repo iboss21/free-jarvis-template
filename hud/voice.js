@@ -31,7 +31,7 @@
     <span id="voice-status"></span>`;
   Object.assign(bar.style, {
     position: 'fixed', left: '50%', transform: 'translateX(-50%)',
-    bottom: '58px', display: 'flex', alignItems: 'center', gap: '12px',
+    bottom: '14px', display: 'flex', alignItems: 'center', gap: '12px',
     zIndex: 60, fontSize: '10px', letterSpacing: '.18em',
   });
   document.body.appendChild(bar);

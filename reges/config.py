@@ -56,6 +56,7 @@ class VoiceConfig:
     enabled: bool = True
     stt_engine: str = "whisper.cpp"
     stt_device: str = "auto"        # auto | cuda | cpu
+    stt_language: str = "en"        # ISO code, or "auto" (unreliable on short clips)
     stt_model_size: str = "base"
     stt_model: str = "base.en"
     stt_binary: str = ""
@@ -77,6 +78,8 @@ class AppearanceConfig:
     orb_density: int = 900          # particle count
     orb_scale: float = 1.0
     orb_speed: float = 1.0          # 0 = frozen, 1 = default, 2 = double
+    theme: str = "obsidian"         # see hud/themes.js
+    orb_variant: str = "lattice"    # lattice | nebula | rings | liquid | shards | pulse
     show_orb_widget: bool = True    # separate always-on-top orb window
     reduce_motion: bool = False
     # Per-state accent colours. The HUD derives its entire palette from the active one.
@@ -100,6 +103,19 @@ class BudgetConfig:
     # Per-1M-token pricing used for the running cost estimate. Override per model.
     price_in_per_mtok: float = 3.0
     price_out_per_mtok: float = 15.0
+
+
+@dataclass
+class PricingConfig:
+    """Per-model rates in USD per million tokens.
+
+    Anything not listed falls back to the built-in table, and anything not in
+    that either is reported as unpriced rather than guessed.
+    Shape: {"model-substring": {"input": 3.0, "output": 15.0, "cache_read": 0.3}}
+    """
+    overrides: dict = field(default_factory=dict)
+    default_input_per_mtok: float = 3.0
+    default_output_per_mtok: float = 15.0
 
 
 @dataclass
@@ -130,12 +146,15 @@ class SafetyConfig:
 @dataclass
 class RegesConfig:
     version: int = 1
+    onboarded: bool = False
+    setup_complete: bool = False
     paths: PathsConfig = field(default_factory=PathsConfig)
     models: ModelConfig = field(default_factory=ModelConfig)
     voice: VoiceConfig = field(default_factory=VoiceConfig)
     appearance: AppearanceConfig = field(default_factory=AppearanceConfig)
     budgets: BudgetConfig = field(default_factory=BudgetConfig)
     skills: SkillsConfig = field(default_factory=SkillsConfig)
+    pricing: PricingConfig = field(default_factory=PricingConfig)
     server: ServerConfig = field(default_factory=ServerConfig)
     safety: SafetyConfig = field(default_factory=SafetyConfig)
 
@@ -232,6 +251,14 @@ def _toml_value(v: Any) -> str:
         return json.dumps(v)  # JSON string escaping is valid TOML basic-string escaping
     if isinstance(v, list):
         return "[" + ", ".join(_toml_value(x) for x in v) + "]"
+    if isinstance(v, dict):
+        # Inline tables. Keeps per-model price overrides hand-editable:
+        #   overrides = { "gpt-4o" = { input = 2.5, output = 10.0 } }
+        parts = []
+        for k, val in v.items():
+            key = json.dumps(str(k))
+            parts.append(f"{key} = {_toml_value(val)}")
+        return "{ " + ", ".join(parts) + " }" if parts else "{}"
     raise TypeError(f"unsupported TOML value: {type(v)}")
 
 
@@ -245,8 +272,14 @@ def save(cfg: RegesConfig, path: Path | None = None) -> Path:
         "# Hand-editable. Secrets are NOT stored here -- see `reges secrets`.",
         "",
         f"version = {cfg.version}",
-        "",
     ]
+    # Top-level scalars other than version were being dropped, which meant
+    # setup_complete never persisted and the wizard reappeared every launch.
+    for f in fields(cfg):
+        if f.name == "version" or is_dataclass(getattr(cfg, f.name)):
+            continue
+        lines.append(f"{f.name} = {_toml_value(getattr(cfg, f.name))}")
+    lines.append("")
     for section_field in fields(cfg):
         section = getattr(cfg, section_field.name)
         if not is_dataclass(section):

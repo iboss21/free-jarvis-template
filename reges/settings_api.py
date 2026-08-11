@@ -66,6 +66,14 @@ def get_settings(cfg) -> dict:
             "orb_density": cfg.appearance.orb_density,
             "orb_speed": getattr(cfg.appearance, "orb_speed", 1.0),
             "reduce_motion": cfg.appearance.reduce_motion,
+            "theme": getattr(cfg.appearance, "theme", "obsidian"),
+            "orb_variant": getattr(cfg.appearance, "orb_variant", "lattice"),
+        },
+        "voice": {
+            "enabled": cfg.voice.enabled,
+            "stt_language": getattr(cfg.voice, "stt_language", "en"),
+            "stt_model_size": getattr(cfg.voice, "stt_model_size", "base"),
+            "stt_device": getattr(cfg.voice, "stt_device", "auto"),
         },
         "safety": {
             "allow_outbound_send": cfg.safety.allow_outbound_send,
@@ -111,6 +119,16 @@ def save_settings(cfg, data: dict) -> dict:
             pass
     if "reduce_motion" in app:
         cfg.appearance.reduce_motion = bool(app["reduce_motion"])
+    for f in ("theme", "orb_variant"):
+        if app.get(f):
+            setattr(cfg.appearance, f, str(app[f]))
+
+    v = data.get("voice") or {}
+    for f in ("stt_language", "stt_model_size", "stt_device"):
+        if v.get(f):
+            setattr(cfg.voice, f, str(v[f]))
+    if "enabled" in v:
+        cfg.voice.enabled = bool(v["enabled"])
 
     # API key: write-only. Never echoed back.
     key = (data.get("api_key") or "").strip()
@@ -176,3 +194,73 @@ def app_action(data: dict) -> dict:
         return {"ok": False, "error": f"unknown action: {action}"}
     except appmod.AppError as exc:
         return {"ok": False, "error": str(exc)}
+
+
+# ------------------------------------------------------------ pricing
+
+def get_pricing(cfg) -> dict:
+    from . import pricing
+    ov = dict(getattr(cfg.pricing, "overrides", {}) or {})
+    return {
+        "verified_on": pricing.PRICES_VERIFIED_ON,
+        "catalog": pricing.catalog(ov),
+        "overrides": ov,
+        "default_input_per_mtok": cfg.pricing.default_input_per_mtok,
+        "default_output_per_mtok": cfg.pricing.default_output_per_mtok,
+    }
+
+
+def save_pricing(cfg, data: dict) -> dict:
+    from .state import BUS
+    ov = data.get("overrides")
+    if isinstance(ov, dict):
+        clean = {}
+        for k, v in list(ov.items())[:200]:
+            if not isinstance(v, dict):
+                continue
+            try:
+                clean[str(k)[:80]] = {
+                    "input": max(0.0, float(v.get("input", 0))),
+                    "output": max(0.0, float(v.get("output", 0))),
+                    "cache_read": max(0.0, float(v.get("cache_read", 0) or 0)),
+                }
+            except (TypeError, ValueError):
+                continue
+        cfg.pricing.overrides = clean
+        BUS._tokens.price_overrides = clean
+    for f in ("default_input_per_mtok", "default_output_per_mtok"):
+        if f in data:
+            try:
+                setattr(cfg.pricing, f, max(0.0, float(data[f])))
+            except (TypeError, ValueError):
+                pass
+    src = getattr(cfg, "_source_path", None)
+    path = cfg_mod.save(cfg, Path(src)) if src else cfg_mod.save(cfg)
+    return {"ok": True, "saved_to": str(path)}
+
+
+# ----------------------------------------------------------- hardware
+
+def get_hardware() -> dict:
+    from . import hardware
+    return hardware.recommend()
+
+
+def save_setup(cfg, data: dict) -> dict:
+    """Record the first-run choice. Deliberately does not download anything —
+    a setup screen that starts a 9GB download because you clicked Continue is
+    a hostile setup screen."""
+    choice = (data.get("choice") or "").strip().lower()
+    if choice == "api":
+        cfg.models.remote_enabled = True
+        cfg.models.reasoning_tier = "remote"
+        cfg.models.router_tier = "local"
+    elif choice == "local":
+        cfg.models.remote_enabled = False
+        cfg.models.reasoning_tier = "local"
+        cfg.models.router_tier = "local"
+    cfg.onboarded = True
+    cfg.setup_complete = True   # the flag the original wizard already used
+    src = getattr(cfg, "_source_path", None)
+    path = cfg_mod.save(cfg, Path(src)) if src else cfg_mod.save(cfg)
+    return {"ok": True, "choice": choice, "saved_to": str(path)}

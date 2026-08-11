@@ -34,6 +34,11 @@ class State(str, Enum):
     ERROR = "error"
 
 
+def _row(local: bool) -> dict:
+    return {"in": 0, "out": 0, "cache_read": 0, "calls": 0,
+            "usd": 0.0, "priced": True, "local": local}
+
+
 @dataclass
 class TokenMeter:
     """Running token + cost accounting for the session.
@@ -45,13 +50,17 @@ class TokenMeter:
     """
     tokens_in: int = 0            # cloud only, billable
     tokens_out: int = 0           # cloud only, billable
+    cache_read: int = 0
     local_in: int = 0             # your own hardware, free
     local_out: int = 0
     calls: int = 0
     local_calls: int = 0
     session_cap: int = 250_000
-    price_in_per_mtok: float = 3.0
+    price_in_per_mtok: float = 3.0     # fallback only, for unpriced models
     price_out_per_mtok: float = 15.0
+    # Per-model accounting. One global rate was wrong for every model but one.
+    by_model: dict = field(default_factory=dict)
+    price_overrides: dict = field(default_factory=dict)
 
     @property
     def total(self) -> int:
@@ -64,8 +73,11 @@ class TokenMeter:
 
     @property
     def usd(self) -> float:
-        return (self.tokens_in / 1_000_000 * self.price_in_per_mtok
-                + self.tokens_out / 1_000_000 * self.price_out_per_mtok)
+        return round(sum(m["usd"] for m in self.by_model.values()), 6)
+
+    @property
+    def unpriced(self) -> list:
+        return sorted(k for k, m in self.by_model.items() if not m["priced"])
 
     @property
     def pct(self) -> float:
@@ -73,20 +85,47 @@ class TokenMeter:
             return 0.0
         return min(self.total / self.session_cap * 100.0, 999.0)
 
-    def add(self, tin: int, tout: int, billable: bool = True) -> None:
-        if billable:
-            self.tokens_in += max(0, int(tin))
-            self.tokens_out += max(0, int(tout))
-            self.calls += 1
-        else:
-            self.local_in += max(0, int(tin))
-            self.local_out += max(0, int(tout))
+    def add(self, tin: int, tout: int, billable: bool = True,
+            model: str = "", cache_read: int = 0) -> None:
+        tin, tout, cache_read = max(0, int(tin)), max(0, int(tout)), max(0, int(cache_read))
+        if not billable:
+            self.local_in += tin
+            self.local_out += tout
             self.local_calls += 1
+            row = self.by_model.setdefault(model or "local", _row(True))
+            row["in"] += tin; row["out"] += tout; row["calls"] += 1
+            row["local"] = True
+            return
+
+        from . import pricing
+        self.tokens_in += tin
+        self.tokens_out += tout
+        self.cache_read += cache_read
+        self.calls += 1
+        usd, priced = pricing.cost_of(model, tin, tout, cache_read,
+                                      self.price_overrides)
+        if not priced:
+            # Unknown model: fall back to the configured default rate but SAY
+            # it is a fallback, so a wrong figure is never presented as fact.
+            usd = (tin / 1e6 * self.price_in_per_mtok
+                   + tout / 1e6 * self.price_out_per_mtok)
+        row = self.by_model.setdefault(model or "unknown", _row(False))
+        row["in"] += tin; row["out"] += tout; row["cache_read"] += cache_read
+        row["calls"] += 1; row["usd"] += usd; row["priced"] = priced
 
     def snapshot(self) -> dict[str, Any]:
+        models = []
+        for name, m in sorted(self.by_model.items()):
+            models.append({"model": name, "local": m["local"],
+                           "in": m["in"], "out": m["out"],
+                           "cache_read": m["cache_read"], "calls": m["calls"],
+                           "usd": round(m["usd"], 6), "priced": m["priced"]})
         return {
             "in": self.tokens_in,
             "out": self.tokens_out,
+            "cache_read": self.cache_read,
+            "models": models,
+            "unpriced": self.unpriced,
             "total": self.total,
             "calls": self.calls,
             "local_in": self.local_in,
@@ -185,6 +224,14 @@ class StateBus:
         finally:
             self.pop()
 
+    def say(self, role: str, text: str) -> None:
+        """Put a conversation turn on the wire so the HUD can render it.
+
+        Without this the agent answers into the void: the vault has the reply,
+        the log has a token count, and the screen has nothing.
+        """
+        self.log("chat", (text or "")[:4000], role=role, chat=True)
+
     def error(self, message: str) -> None:
         self.log("error", message)
         with self._lock:
@@ -230,17 +277,25 @@ class StateBus:
         self.log("warn", "session token cap exceeded -- continuing (on_cap=warn)")
 
     def add_tokens(self, tin: int, tout: int, model: str = "",
-                   billable: bool = True) -> None:
+                   billable: bool = True, cache_read: int = 0) -> None:
         """billable=False for anything running on the user's own hardware."""
         with self._lock:
-            self._tokens.add(tin, tout, billable)
+            self._tokens.add(tin, tout, billable, model, cache_read)
             pct = self._tokens.pct
             warn = (not self._warned) and pct >= 80
             if warn:
                 self._warned = True
         if warn:
             self.log("warn", f"token budget at {pct:.0f}% of session cap")
-        tag = "" if billable else " (local, free)"
+        if billable:
+            from . import pricing
+            with self._lock:
+                row = self._tokens.by_model.get(model or "unknown", {})
+            tag = f" · {pricing.fmt_usd(row.get('usd', 0))}"
+            if not row.get("priced", True):
+                tag += " (est — no rate on file)"
+        else:
+            tag = " (local, free)"
         self.log("tokens", f"{model or 'llm'} +{tin}/{tout}{tag}",
                  tin=tin, tout=tout, billable=billable)
 

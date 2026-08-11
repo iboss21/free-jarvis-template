@@ -93,15 +93,23 @@ def main() -> int:
 
     from reges.server import serve
     from reges.state import BUS
+    try:
+        BUS._tokens.price_overrides = dict(cfg.pricing.overrides or {})
+        BUS._tokens.price_in_per_mtok = float(cfg.pricing.default_input_per_mtok)
+        BUS._tokens.price_out_per_mtok = float(cfg.pricing.default_output_per_mtok)
+    except Exception:
+        pass
     from reges.__main__ import Agent
 
     agent = Agent(cfg)
     httpd = serve(cfg, agent.handle)
-    url = f"http://{cfg.server.host}:{cfg.server.port}"
+    first_time = not getattr(cfg, "setup_complete", False)
+    base = f"http://{cfg.server.host}:{cfg.server.port}"
+    url = base + ("/setup.html" if first_time else "/")
 
     print()
     print("  R E G E S")
-    print(f"  HUD        {url}")
+    print(f"  {'SETUP      ' if first_time else 'HUD        '}{url}")
     print(f"  app dir    {app}")
     print(f"  vault      {cfg.paths.vault_dir}")
     print(f"  skills     {', '.join(agent.skills) if agent.skills else 'none'}")
@@ -111,11 +119,10 @@ def main() -> int:
               + (f", {len(stale)} STALE {stale}" if stale else ", all fresh"))
     mode = "local" if not cfg.models.remote_enabled else "remote"
     print(f"  model      {mode} -> {cfg.models.local_base_url}")
-    if first_run:
+    if first_time:
         print()
-        print("  First run. Config written. To point at your own model, edit:")
-        print(f"    {cfg_file}")
-        print("    [models] local_base_url / local_model")
+        print("  First run — the setup wizard is open in your browser.")
+        print("  Seven steps. Nothing is written to disk until you press Deploy.")
     print()
     print("  ctrl-c to stop")
     print()

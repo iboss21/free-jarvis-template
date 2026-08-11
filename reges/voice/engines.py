@@ -38,6 +38,33 @@ from pathlib import Path
 IS_WIN = sys.platform == "win32"
 SAMPLE_RATE = 16000
 
+# Whisper ships English-ONLY weights for the small sizes. They are the real fix
+# for "I said hello and it wrote Cyrillic": an English-only model physically
+# cannot emit another language, so detection can never go wrong.
+ENGLISH_ONLY = {"tiny": "tiny.en", "base": "base.en",
+                "small": "small.en", "medium": "medium.en"}
+
+LANGUAGES = [
+    ("en", "English"),
+    ("ka", "Georgian"),
+    ("ru", "Russian"),
+    ("de", "German"),
+    ("fr", "French"),
+    ("es", "Spanish"),
+    ("it", "Italian"),
+    ("pt", "Portuguese"),
+    ("tr", "Turkish"),
+    ("uk", "Ukrainian"),
+    ("pl", "Polish"),
+    ("nl", "Dutch"),
+    ("ar", "Arabic"),
+    ("hi", "Hindi"),
+    ("zh", "Chinese"),
+    ("ja", "Japanese"),
+    ("ko", "Korean"),
+    ("auto", "Auto-detect (unreliable on short clips)"),
+]
+
 
 # --------------------------------------------------------------------
 # detection
@@ -119,6 +146,7 @@ def capabilities(models_dir: Path | None = None) -> dict:
         pass
 
     return {
+        "languages": [{"code": c, "label": l} for c, l in LANGUAGES],
         "gpu_detected": gpu_seen,
         "device": _WHISPER.get("device") or ("cuda" if gpu_seen and not _CUDA_BANNED["why"] else "cpu"),
         "cuda_note": cuda_note(),
@@ -210,6 +238,14 @@ def _build(size: str, device: str, compute: str):
     return model
 
 
+def resolve_size(size: str, language: str) -> str:
+    """English + a size with .en weights -> use the English-only build."""
+    base = (size or "base").replace(".en", "")
+    if (language or "").lower() == "en" and base in ENGLISH_ONLY:
+        return ENGLISH_ONLY[base]
+    return base
+
+
 def _load_faster_whisper(size: str = "base", prefer: str = "auto"):
     """Returns (model, device). Never raises because a GPU is half-installed."""
     if (_WHISPER["model"] is not None and _WHISPER["size"] == size
@@ -253,7 +289,7 @@ def _to_wav(src: Path) -> Path:
 
 
 def transcribe(audio: bytes, mime: str = "audio/webm", *,
-               model_size: str = "base", language: str | None = None,
+               model_size: str = "base", language: str | None = "en",
                device: str = "auto") -> dict:
     """Audio in, text out. Never leaves this machine."""
     if not audio:
@@ -266,11 +302,25 @@ def transcribe(audio: bytes, mime: str = "audio/webm", *,
         src.write_bytes(audio)
 
         if _has_module("faster_whisper"):
+            lang = (language or "en").lower()
+            auto = lang in ("auto", "")
+            size = resolve_size(model_size, "" if auto else lang)
+
             def _run(dev: str):
-                model, used = _load_faster_whisper(model_size, prefer=dev)
+                model, used = _load_faster_whisper(size, prefer=dev)
                 segments, info = model.transcribe(
-                    str(src), language=language, vad_filter=True,
-                    beam_size=1, condition_on_previous_text=False)
+                    str(src),
+                    # Pinning the language is the difference between "hey Jarvis"
+                    # and Cyrillic phonetics. Auto-detect on a two-second clip is
+                    # a coin flip, and Whisper commits to whatever it guessed.
+                    language=None if auto else lang,
+                    vad_filter=True,
+                    beam_size=1,
+                    condition_on_previous_text=False,
+                    # Whisper invents speech in silence. These make it shut up.
+                    no_speech_threshold=0.6,
+                    log_prob_threshold=-1.0,
+                    temperature=0.0)
                 # Generators are lazy — the CUDA error surfaces HERE, on encode,
                 # not on load. Force the work inside the try.
                 txt = " ".join(sg.text.strip() for sg in segments).strip()
@@ -293,8 +343,13 @@ def transcribe(audio: bytes, mime: str = "audio/webm", *,
                 else:
                     raise VoiceError(f"faster-whisper failed: {exc}") from exc
 
+            detected = getattr(info, "language", "") or lang
+            prob = getattr(info, "language_probability", None)
             return {"text": text, "engine": "faster-whisper", "device": used,
-                    "language": getattr(info, "language", language or ""),
+                    "model": size,
+                    "language": detected,
+                    "language_forced": not auto,
+                    "language_confidence": round(prob, 2) if prob else None,
                     "fallback": cuda_note(),
                     "ms": int((time.time() - t0) * 1000)}
 

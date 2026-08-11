@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>REGES — Setup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@6..96,400;6..96,500&family=JetBrains+Mono:wght@200;300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/setup.css">
+</head>
+<body>
+
+<div class="rail-progress"><div class="rail-fill" id="rail"></div></div>
+
+<header class="brand">
+  <div class="mark">R<span>·</span>E<span>·</span>G<span>·</span>E<span>·</span>S</div>
+  <div class="sub" id="step-name">preparing</div>
+  <div class="count"><b id="step-n">1</b><i>/7</i></div>
+</header>
+
+<main id="stage">
+
+  <!-- 1 ─────────────────────────────────────────────── -->
+  <section class="step on" data-step="1">
+    <div class="hero">
+      <canvas id="hero-orb"></canvas>
+      <div class="hero-copy">
+        <h1><em>Something</em><br>is about to<br><strong>wake up.</strong></h1>
+        <p class="lede">
+          Seven steps. Nothing is written to your disk until the last one, and
+          you can walk back at any point.
+        </p>
+        <div class="facts">
+          <div><b id="f-os">—</b><i>system</i></div>
+          <div><b id="f-py">—</b><i>python</i></div>
+          <div><b id="f-gpu">—</b><i>graphics</i></div>
+        </div>
+        <button class="go" data-next>Begin <span>→</span></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2 ─────────────────────────────────────────────── -->
+  <section class="step" data-step="2">
+    <h2>What's already here</h2>
+    <p class="lede">A quick look at your machine. Red is a blocker, amber is optional.</p>
+    <div class="checks" id="checks"></div>
+    <div class="nav"><button data-back>Back</button><button class="go" data-next id="pf-next">Continue <span>→</span></button></div>
+  </section>
+
+  <!-- 3 ─────────────────────────────────────────────── -->
+  <section class="step" data-step="3">
+    <h2>Where it lives</h2>
+    <p class="lede">Three folders. Put the models on your biggest drive — they are large.</p>
+    <div class="fields">
+      <label>Reges<input id="d-app" spellcheck="false"></label>
+      <label>Vault <small>your notes, in plain markdown</small><input id="d-vault" spellcheck="false"></label>
+      <label>Models <small>AI model files</small><input id="d-models" spellcheck="false"></label>
+    </div>
+    <div class="drives" id="drives"></div>
+    <div class="nav"><button data-back>Back</button><button class="go" data-next>Continue <span>→</span></button></div>
+  </section>
+
+  <!-- 4 ─────────────────────────────────────────────── -->
+  <section class="step" data-step="4">
+    <h2>The brain</h2>
+    <p class="lede">Run it on your own machine, or rent one. You can change this later.</p>
+    <div class="picks">
+      <button class="pick" data-brain="local">
+        <b>On my machine</b>
+        <i>Private. Free forever. Needs a decent graphics card.</i>
+      </button>
+      <button class="pick" data-brain="api">
+        <b>Use an API</b>
+        <i>Strongest models, nothing to download. Costs per use.</i>
+      </button>
+      <button class="pick" data-brain="existing">
+        <b>I already run one</b>
+        <i>LM Studio, Ollama, llama.cpp — point Reges at it.</i>
+      </button>
+    </div>
+
+    <div class="panel" id="p-local" hidden>
+      <div class="gpu-line" id="gpu-line"></div>
+      <div class="model-card" id="model-card"></div>
+      <div class="quants" id="quants"></div>
+    </div>
+
+    <div class="panel" id="p-api" hidden>
+      <label class="fl">Provider
+        <select id="api-provider"></select>
+      </label>
+      <label class="fl">API key
+        <input id="api-key" type="password" spellcheck="false" placeholder="paste it here">
+      </label>
+      <p class="hint">Stored encrypted on this machine. Never sent to the browser again.</p>
+    </div>
+
+    <div class="panel" id="p-existing" hidden>
+      <label class="fl">Address<input id="ex-url" spellcheck="false" value="http://127.0.0.1:1234/v1"></label>
+      <label class="fl">Model id<input id="ex-model" spellcheck="false" placeholder="fetch or type"></label>
+      <button class="ghost" id="ex-fetch">Fetch models</button>
+      <div class="result" id="ex-res"></div>
+    </div>
+
+    <div class="nav"><button data-back>Back</button><button class="go" data-next>Continue <span>→</span></button></div>
+  </section>
+
+  <!-- 5 ─────────────────────────────────────────────── -->
+  <section class="step" data-step="5">
+    <h2>Voice</h2>
+    <p class="lede">Hold a key, talk, hear it answer. Audio is transcribed on this machine and never uploaded.</p>
+    <div class="picks two">
+      <button class="pick" data-voice="on"><b>Yes, give it ears</b><i>Downloads a small speech engine.</i></button>
+      <button class="pick" data-voice="off"><b>Typing only</b><i>You can turn this on later.</i></button>
+    </div>
+    <div class="panel" id="p-voice" hidden>
+      <label class="fl">Language you speak
+        <select id="w-lang"></select>
+      </label>
+      <p class="hint">
+        Pin this. Auto-detect guesses from a two-second clip and commits to the
+        guess — that is how "hey Jarvis" comes back as Cyrillic. English also
+        switches to English-only weights, which cannot produce another language.
+      </p>
+      <div class="dep" id="dep-voice"></div>
+    </div>
+    <div class="nav"><button data-back>Back</button><button class="go" data-next>Continue <span>→</span></button></div>
+  </section>
+
+  <!-- 6 ─────────────────────────────────────────────── -->
+  <section class="step" data-step="6">
+    <h2>How it should look</h2>
+    <p class="lede">Pick a mood and a body. Both change live.</p>
+    <div class="look">
+      <div class="look-preview"><canvas id="prev-orb"></canvas></div>
+      <div class="look-controls">
+        <div class="sect-l">Palette</div>
+        <div class="swatches" id="themes"></div>
+        <div class="sect-l">Orb</div>
+        <div class="variants" id="variants"></div>
+        <div class="sect-l">Motion</div>
+        <label class="slider">Spin<input id="o-speed" type="range" min="0" max="2" step="0.05" value="1"><em id="o-speed-v"></em></label>
+        <label class="slider">Density<input id="o-density" type="range" min="200" max="2500" step="50" value="900"><em id="o-density-v"></em></label>
+      </div>
+    </div>
+    <div class="nav"><button data-back>Back</button><button class="go" data-next>Continue <span>→</span></button></div>
+  </section>
+
+  <!-- 7 ─────────────────────────────────────────────── -->
+  <section class="step" data-step="7">
+    <h2>Deploy</h2>
+    <p class="lede">Everything below happens now. Nothing before this point touched your disk.</p>
+    <div class="summary" id="summary"></div>
+    <div class="tasks" id="tasks"></div>
+    <div class="nav">
+      <button data-back>Back</button>
+      <button class="go deploy" id="deploy">Bring Reges alive <span>◈</span></button>
+    </div>
+  </section>
+
+</main>
+
+<script type="module" src="/setup.js"></script>
+</body>
+</html>

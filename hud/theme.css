@@ -1,0 +1,73 @@
+/* REGES design tokens — from iboss21/RegesCore-Ai-UI (MIT).
+   base #08080A · accent #E5343F · ok #2FE07C · warn #F5A524
+   Jost for UI, JetBrains Mono for data. */
+
+@import url('https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+:root {
+  --rc-bg:        #08080A;
+  --rc-panel:     #0B0B0E;
+  --rc-panel-2:   #0E0E11;
+  --rc-panel-3:   #121216;
+  --rc-raised:    #15151A;
+  --rc-raised-2:  #1A1A1F;
+  --rc-line:      #1D1D22;
+
+  --rc-ink:       #ECECEF;
+  --rc-ink-2:     #D6D6DC;
+  --rc-ink-3:     #C8C8D0;
+  --rc-mute:      #82828C;
+  --rc-mute-2:    #6E6E78;
+  --rc-mute-3:    #55555E;
+  --rc-mute-4:    #44444E;
+
+  --rc-accent:    #E5343F;
+  --rc-ok:        #2FE07C;
+  --rc-warn:      #F5A524;
+
+  --rc-r-sm: 2px;
+  --rc-r:    5px;
+  --rc-r-md: 8px;
+  --rc-r-lg: 12px;
+
+  --rc-ui:   'Jost', system-ui, sans-serif;
+  --rc-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --rc-pad: 16px;
+  --rc-gap: 14px;
+}
+
+/* ── progress bar ───────────────────────────────────────────────
+   One bar component, used for the hardware scan, model downloads and
+   any long job. Determinate when we know the total, indeterminate when
+   we do not — never a spinner that tells you nothing. */
+
+.rc-bar { width: 100%; }
+.rc-bar .rc-bar-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-family: var(--rc-mono); font-size: 10px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--rc-mute); margin-bottom: 7px;
+}
+.rc-bar .rc-bar-head b { color: var(--rc-ink-3); font-weight: 500; }
+.rc-bar .rc-bar-track {
+  height: 3px; background: var(--rc-raised); border-radius: var(--rc-r-sm);
+  overflow: hidden; position: relative;
+}
+.rc-bar .rc-bar-fill {
+  height: 100%; width: 0%; background: var(--rc-accent);
+  border-radius: var(--rc-r-sm); transition: width .35s cubic-bezier(.4,0,.2,1);
+}
+.rc-bar.ok .rc-bar-fill { background: var(--rc-ok); }
+.rc-bar.warn .rc-bar-fill { background: var(--rc-warn); }
+
+.rc-bar.indet .rc-bar-fill {
+  width: 32%; animation: rc-slide 1.15s cubic-bezier(.65,0,.35,1) infinite;
+}
+@keyframes rc-slide {
+  0%   { transform: translateX(-110%); }
+  100% { transform: translateX(330%); }
+}
+.rc-bar .rc-bar-note {
+  margin-top: 7px; font-family: var(--rc-mono); font-size: 10px;
+  color: var(--rc-mute-3); letter-spacing: .06em;
+}

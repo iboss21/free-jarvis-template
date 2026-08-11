@@ -39,6 +39,9 @@ def _secrets(cfg) -> SecretStore:
 # The agent loop
 # --------------------------------------------------------------------------- #
 
+CHAT_TURNS = 12   # how much conversation the chat fallback carries
+
+
 class Agent:
     def __init__(self, cfg):
         self.cfg = cfg
@@ -46,14 +49,17 @@ class Agent:
         self.secrets = _secrets(cfg)
         self.llm = LLM(cfg, self.secrets)
         self.skills = load_skills(cfg)
+        self.history: list[tuple[str, str]] = []   # [(user, assistant), ...]
 
     def handle(self, intent: str) -> str:
         try:
             r = route(intent, self.skills, self.llm, self.cfg)
             if not r.ok:
-                msg = self._clarify(intent, r.why)
-                BUS.log("router", "asked for clarification")
-                return msg
+                # No skill matched. That is not an error — it is a conversation.
+                # An assistant that can only answer in eight fixed shapes is a
+                # menu, not an assistant.
+                BUS.log("router", "chat")
+                return self.chat(intent)
 
             skill = self.skills[r.skill]
             with BUS.during(State.WORKING, skill.name):
@@ -80,11 +86,37 @@ class Agent:
             BUS.error(str(e))
             return f"Model error: {e}"
 
-    def _clarify(self, intent: str, why: str) -> str:
-        names = ", ".join(self.skills) or "none"
-        return (f"Not sure which skill that is ({why}).\n"
-                f"Enabled: {names}\n"
-                f"Rephrase, or name the skill directly.")
+    # -- chat ---------------------------------------------------------- #
+    def chat(self, message: str) -> str:
+        """Plain conversation. Used when nothing routes, or on demand."""
+        skills = ", ".join(self.skills) or "none"
+        system = (
+            "You are Reges, a local automation agent running on the user's own "
+            "machine. You are talking, not executing a skill.\n"
+            "Be brief and direct. No preamble, no bullet lists unless asked.\n"
+            "You may answer normally about anything.\n"
+            "If the user asks for something one of your skills covers, say which "
+            "one and that they can just ask for it.\n"
+            f"Skills available: {skills}"
+        )
+        convo = []
+        for u, a in self.history[-CHAT_TURNS:]:
+            convo.append(f"User: {u}")
+            convo.append(f"Reges: {a}")
+        convo.append(f"User: {message}")
+        convo.append("Reges:")
+
+        with BUS.during(State.THINKING, "chat"):
+            answer = (self.llm.reason(system=system, user="\n".join(convo)) or "").strip()
+
+        if not answer:
+            answer = ("No answer came back from the model. Check Settings — "
+                      "base URL, model id, and TEST CONNECTION.")
+
+        self.history.append((message, answer))
+        if len(self.history) > CHAT_TURNS * 2:
+            self.history = self.history[-CHAT_TURNS:]
+        return answer
 
 
 # --------------------------------------------------------------------------- #

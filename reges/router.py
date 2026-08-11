@@ -171,7 +171,7 @@ def route(intent: str, skills: dict[str, Skill], llm, cfg: RegesConfig) -> Route
 
     parsed = _extract_json(raw)
     if not parsed:
-        BUS.log("warn", "router returned unparseable output")
+        BUS.log("router", "no skill matched — chatting")
         return Route(None, 0.0, {}, "router parse failed")
 
     name = parsed.get("skill")

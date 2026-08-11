@@ -14,6 +14,15 @@
  *   error      jitter, links decay, particles fall
  */
 
+export const ORB_VARIANTS = {
+  lattice: { name: 'Lattice',  tag: 'linked sphere · default' },
+  nebula:  { name: 'Nebula',   tag: 'dense cloud, no links' },
+  rings:   { name: 'Gyroscope',tag: 'orbital bands' },
+  liquid:  { name: 'Liquid',   tag: 'wave-deformed surface' },
+  shards:  { name: 'Shards',   tag: 'crystalline facets' },
+  pulse:   { name: 'Pulse',    tag: 'concentric shells' },
+};
+
 const STATES = {
   // spin is radians per millisecond. 0.00016 ~= one revolution every 40s.
   // Anything above ~0.0006 reads as "spinning" rather than "alive" at idle.
@@ -42,9 +51,13 @@ export class Orb {
     // 0 = frozen, 1 = default, 2 = double. Set from settings.
     this.speed = (opts.speed === undefined || opts.speed === null)
       ? 1 : Math.max(0, Math.min(3, Number(opts.speed) || 0));
+    // Variants change the GEOMETRY, not just the colour. Same state machine,
+    // same signature values — a different body reacting to them.
+    this.variant = opts.variant || 'lattice';
 
     this.state = 'idle';
     this.level = 0;            // 0..1 audio RMS
+    this.colors = opts.colors || null;   // state -> hex, owned by the theme
     this.rgb = [47, 111, 122];
     this.targetRgb = [47, 111, 122];
 
@@ -68,14 +81,66 @@ export class Orb {
   _build() {
     this.pts = [];
     const golden = Math.PI * (3 - Math.sqrt(5));
+    const v = this.variant || 'lattice';
+
     for (let i = 0; i < this.count; i++) {
-      const y = 1 - (i / (this.count - 1)) * 2;
-      const r = Math.sqrt(Math.max(0, 1 - y * y));
-      const th = golden * i;
+      const t = i / Math.max(1, this.count - 1);
+      let x, y, z, shell = 1;
+
+      if (v === 'nebula') {
+        // Volume fill, not a shell — cube-root keeps density even through
+        // the interior instead of piling everything at the surface.
+        const u = Math.random() * 2 - 1;
+        const th = Math.random() * Math.PI * 2;
+        const rr = Math.cbrt(Math.random());
+        const s2 = Math.sqrt(Math.max(0, 1 - u * u));
+        x = Math.cos(th) * s2 * rr; y = u * rr; z = Math.sin(th) * s2 * rr;
+        shell = rr;
+      } else if (v === 'rings') {
+        // Three tilted bands. Gyroscope, not sphere.
+        const band = i % 3;
+        const ang = t * Math.PI * 2 * 9 + band * 2.1;
+        const tilt = [0.0, 0.72, -0.55][band];
+        const wobble = (Math.random() - 0.5) * 0.05;
+        const rx = Math.cos(ang) * (1 + wobble);
+        const rz = Math.sin(ang) * (1 + wobble);
+        x = rx;
+        y = rz * Math.sin(tilt) + (Math.random() - 0.5) * 0.04;
+        z = rz * Math.cos(tilt);
+      } else if (v === 'shards') {
+        // Cluster onto a low-poly icosahedral-ish set of facet centres.
+        const facets = 24;
+        const f = i % facets;
+        const fy = 1 - (f / (facets - 1)) * 2;
+        const fr = Math.sqrt(Math.max(0, 1 - fy * fy));
+        const fth = golden * f;
+        const jitter = 0.16;
+        x = Math.cos(fth) * fr + (Math.random() - 0.5) * jitter;
+        y = fy + (Math.random() - 0.5) * jitter;
+        z = Math.sin(fth) * fr + (Math.random() - 0.5) * jitter;
+        const m = Math.hypot(x, y, z) || 1;
+        x /= m; y /= m; z /= m;
+      } else if (v === 'pulse') {
+        // Four concentric shells that breathe out of phase.
+        const rings = 4;
+        shell = 0.35 + (i % rings) / rings * 0.65;
+        const yy = 1 - (t * 2);
+        const r = Math.sqrt(Math.max(0, 1 - yy * yy));
+        const th = golden * i;
+        x = Math.cos(th) * r * shell; y = yy * shell; z = Math.sin(th) * r * shell;
+      } else {
+        // lattice + liquid share the Fibonacci shell
+        const yy = 1 - t * 2;
+        const r = Math.sqrt(Math.max(0, 1 - yy * yy));
+        const th = golden * i;
+        x = Math.cos(th) * r; y = yy; z = Math.sin(th) * r;
+      }
+
       this.pts.push({
-        x: Math.cos(th) * r, y, z: Math.sin(th) * r,
+        x, y, z, shell,
         seed: Math.random() * Math.PI * 2,
         drift: 0.6 + Math.random() * 0.8,
+        band: i % 3,
         px: 0, py: 0, pd: 0,
       });
     }
@@ -98,12 +163,24 @@ export class Orb {
     if (!STATES[name]) name = 'idle';
     this.state = name;
     this.target = { ...STATES[name] };
+    if (this.colors && this.colors[name]) this.setColor(this.colors[name]);
   }
 
   setColor(hex) { this.targetRgb = hexToRgb(hex); }
   setLevel(v) { this.level = Math.max(0, Math.min(1, v || 0)); }
 
+  setColors(colors) {
+    if (!colors) return;
+    this.colors = { ...(this.colors || {}), ...colors };
+    this.setState(this.state);   // re-target so the ease carries to the new hue
+  }
+
   setSpeed(v) { this.speed = Math.max(0, Math.min(3, Number(v) || 0)); }
+
+  setVariant(v) {
+    this.variant = ORB_VARIANTS[v] ? v : 'lattice';
+    this._build();         // some variants need a different point distribution
+  }
   setDensity(n) { this.count = Math.max(120, Math.min(4000, n | 0)); this._build(); }
 
   _loop(ts) {
@@ -150,8 +227,23 @@ export class Orb {
 
     // Project.
     const jitterAmp = s.jitter * (this.reduceMotion ? 0 : 1);
+    const v = this.variant || 'lattice';
     for (const p of this.pts) {
-      const wob = Math.sin(this.t / 900 * p.drift + p.seed) * 0.02 * (1 + jitterAmp * 6);
+      let wob = Math.sin(this.t / 900 * p.drift + p.seed) * 0.02 * (1 + jitterAmp * 6);
+
+      if (v === 'liquid') {
+        // Two crossed travelling waves over the surface — the sphere behaves
+        // like a drop of mercury rather than a point cloud.
+        wob += Math.sin(p.y * 4.2 + this.t / 520) * 0.075
+             + Math.cos(p.x * 3.4 - this.t / 690) * 0.055
+             + this.level * 0.20;
+      } else if (v === 'pulse') {
+        // Shells expand on their own clock, offset by radius.
+        wob += Math.sin(this.t / 780 - p.shell * 3.1) * 0.10 * p.shell;
+      } else if (v === 'rings') {
+        wob += Math.sin(this.t / 640 + p.band * 2.0) * 0.03;
+      }
+
       const rr = 1 + wob;
       let x = p.x * rr, y = p.y * rr, z = p.z * rr;
 
@@ -171,7 +263,8 @@ export class Orb {
     // Links between near neighbours on the front hemisphere only. Sampled, not
     // exhaustive -- an O(n^2) pass at 900 points would cost more than the
     // information it adds.
-    if (s.links > 0.03) {
+    const linkOK = !(v === 'nebula' || v === 'pulse');
+    if (linkOK && s.links > 0.03) {
       ctx.lineWidth = 0.5;
       const step = Math.max(1, Math.floor(this.pts.length / 260));
       const maxD = R * 0.20;

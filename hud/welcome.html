@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>REGES — Setup</title>
+<link rel="stylesheet" href="/theme.css">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:auto;overflow-y:auto;background:var(--rc-bg);color:var(--rc-ink);
+    font-family:var(--rc-ui);font-weight:300;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:840px;margin:0 auto;padding:56px 28px 90px}
+
+  .brand{font-family:var(--rc-mono);font-size:13px;letter-spacing:.42em;
+    color:var(--rc-ink);margin-bottom:6px}
+  .brand i{color:var(--rc-accent);font-style:normal}
+  .sub{font-size:14px;color:var(--rc-mute);margin-bottom:40px;line-height:1.7}
+
+  .step{border:1px solid var(--rc-line);background:var(--rc-panel);
+    border-radius:var(--rc-r-lg);padding:24px 26px;margin-bottom:16px}
+  .step h2{font-family:var(--rc-mono);font-size:10px;letter-spacing:.24em;
+    text-transform:uppercase;color:var(--rc-mute-2);font-weight:500;margin-bottom:16px}
+
+  .spec{display:grid;grid-template-columns:110px 1fr;gap:6px 18px;
+    font-family:var(--rc-mono);font-size:12px;line-height:1.85}
+  .spec dt{color:var(--rc-mute-3);letter-spacing:.1em;text-transform:uppercase;font-size:10px}
+  .spec dd{color:var(--rc-ink-3)}
+
+  .verdict{margin-top:22px;padding-top:20px;border-top:1px solid var(--rc-line)}
+  .verdict .big{font-size:18px;line-height:1.55;color:var(--rc-ink);margin-bottom:8px}
+  .verdict .why{font-size:13px;color:var(--rc-mute);line-height:1.7}
+
+  .choices{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:22px}
+  @media (max-width:680px){.choices{grid-template-columns:1fr}}
+  .choice{border:1px solid var(--rc-line);background:var(--rc-panel-2);
+    border-radius:var(--rc-r-md);padding:18px 20px;cursor:pointer;
+    transition:border-color .15s,background .15s}
+  .choice:hover{border-color:var(--rc-mute-4);background:var(--rc-panel-3)}
+  .choice.on{border-color:var(--rc-accent);background:var(--rc-raised)}
+  .choice.rec::after{content:'RECOMMENDED';font-family:var(--rc-mono);font-size:8px;
+    letter-spacing:.2em;color:var(--rc-ok);display:block;margin-top:12px}
+  .choice h3{font-size:15px;font-weight:400;margin-bottom:6px;color:var(--rc-ink)}
+  .choice p{font-size:12px;color:var(--rc-mute);line-height:1.65}
+  .choice .meta{font-family:var(--rc-mono);font-size:10px;color:var(--rc-mute-3);
+    margin-top:10px;letter-spacing:.06em}
+
+  .opts{margin-top:18px;font-family:var(--rc-mono);font-size:11px;line-height:2}
+  .opts .o{display:flex;justify-content:space-between;color:var(--rc-mute-2)}
+  .opts .o b{color:var(--rc-ink-3);font-weight:500}
+  .opts .o.deg b{color:var(--rc-warn)}
+
+  .note{font-size:11px;color:var(--rc-mute-3);line-height:1.75;margin-top:14px}
+  .note b{color:var(--rc-warn);font-weight:400}
+
+  .actions{display:flex;gap:12px;align-items:center;margin-top:26px}
+  button{font-family:var(--rc-mono);font-size:11px;letter-spacing:.16em;
+    background:var(--rc-raised);border:1px solid var(--rc-line);color:var(--rc-ink-3);
+    padding:11px 22px;border-radius:var(--rc-r);cursor:pointer;
+    transition:border-color .15s,background .15s}
+  button:hover{border-color:var(--rc-mute-4);background:var(--rc-raised-2)}
+  button.go{border-color:var(--rc-accent);color:var(--rc-ink)}
+  button.go:hover{background:var(--rc-accent);color:#fff}
+  .skip{background:none;border:none;color:var(--rc-mute-3);padding:11px 4px}
+  .skip:hover{color:var(--rc-ink-3);background:none}
+
+  .hide{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="brand">R E G E S <i>·</i> C O R E</div>
+  <div class="sub">
+    Your own assistant, running on your own machine.<br>
+    This takes about a minute. Nothing is installed until you say so.
+  </div>
+
+  <!-- step 1 -->
+  <div class="step" id="s-scan">
+    <h2>Checking what this computer can run</h2>
+    <div class="rc-bar" id="bar">
+      <div class="rc-bar-head"><span id="bar-label">starting</span><b id="bar-pct"></b></div>
+      <div class="rc-bar-track"><div class="rc-bar-fill" id="bar-fill"></div></div>
+      <div class="rc-bar-note" id="bar-note">Reading your CPU, memory and graphics card. Nothing is sent anywhere.</div>
+    </div>
+
+    <div class="hide" id="scan-out">
+      <dl class="spec" id="spec"></dl>
+      <div class="verdict">
+        <div class="big" id="headline"></div>
+        <div class="why" id="why"></div>
+        <div class="opts" id="opts"></div>
+        <div class="note" id="notes"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- step 2 -->
+  <div class="step hide" id="s-choose">
+    <h2>How should it think?</h2>
+    <div class="choices">
+      <div class="choice" id="c-local" onclick="pick('local')">
+        <h3>Run it on this computer</h3>
+        <p>Free forever. Private — nothing leaves the machine. Needs a one-time
+           download and your hardware does the work.</p>
+        <div class="meta" id="c-local-meta"></div>
+      </div>
+      <div class="choice" id="c-api" onclick="pick('api')">
+        <h3>Use an AI provider</h3>
+        <p>Best quality, works on any computer, nothing to download. You pay per
+           use and you need a key.</p>
+        <div class="meta">Anthropic · OpenAI · OpenRouter · Groq · DeepSeek</div>
+      </div>
+    </div>
+    <div class="note" id="choice-note"></div>
+    <div class="actions">
+      <button class="go" id="next" onclick="go()">CONTINUE</button>
+      <button class="skip" onclick="location.href='/'">skip — set it up later</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let REC = null, CHOICE = null;
+
+function bar(pct, label, note, cls) {
+  const b = $('bar');
+  b.className = 'rc-bar' + (cls ? ' ' + cls : '');
+  if (pct === null) { b.classList.add('indet'); $('bar-pct').textContent = ''; }
+  else { $('bar-fill').style.width = pct + '%'; $('bar-pct').textContent = pct + '%'; }
+  if (label) $('bar-label').textContent = label;
+  if (note !== undefined) $('bar-note').textContent = note;
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function scan() {
+  // Real work is one request; the steps exist so a beginner can see what is
+  // being read about their machine rather than staring at a blank box.
+  const steps = [
+    [12, 'processor'],
+    [30, 'memory'],
+    [55, 'graphics card'],
+    [74, 'disk space'],
+    [88, 'working out what fits'],
+  ];
+  let data = null;
+  const req = fetch('/api/hardware').then((r) => r.json()).then((d) => { data = d; });
+
+  for (const [pct, label] of steps) { bar(pct, label); await sleep(330); }
+  await req;
+  bar(100, 'done', '', 'ok');
+  await sleep(350);
+
+  REC = data;
+  render(data);
+}
+
+function render(d) {
+  const m = d.machine, g = (m.gpus && m.gpus[0]) || null;
+  $('spec').innerHTML = `
+    <dt>System</dt><dd>${esc(m.os)} ${esc(m.os_version)}</dd>
+    <dt>Processor</dt><dd>${esc(m.cpu)} · ${m.cores} cores</dd>
+    <dt>Memory</dt><dd>${m.ram_gb} GB</dd>
+    <dt>Graphics</dt><dd>${g ? esc(g.name) + (g.vram_gb ? ' · ' + g.vram_gb + ' GB' : '')
+                            + (g.unified ? ' · shared memory' : '') : 'none found'}</dd>
+    <dt>Free disk</dt><dd>${m.disk_free_gb} GB</dd>`;
+
+  $('headline').textContent = d.headline;
+  $('why').textContent = d.why;
+
+  $('opts').innerHTML = (d.options || []).slice().reverse().map((o) =>
+    `<div class="o ${o.degraded ? 'deg' : ''}">
+       <span>${o.params_b}B — ${esc(o.label)}, ${esc(o.note)}</span>
+       <b>${o.quant} · ~${o.size_gb} GB${o.degraded ? ' · quality loss' : ''}</b>
+     </div>`).join('') || '<div class="o"><span>Nothing fits comfortably.</span></div>';
+
+  const notes = (m.notes || []).concat([d.disclaimer]);
+  $('notes').innerHTML = notes.map((n) => `<div>${esc(n)}</div>`).join('');
+  if (!d.disk_ok) {
+    $('notes').innerHTML += `<div><b>Not much free disk space</b> — clear some room before downloading.</div>`;
+  }
+
+  $('scan-out').classList.remove('hide');
+  $('s-choose').classList.remove('hide');
+
+  $('c-local-meta').textContent = d.pick
+    ? `${d.pick.params_b}B at ${d.pick.quant} · about ${d.pick.size_gb} GB to download`
+    : 'not enough memory on this machine';
+
+  if (d.verdict === 'local') {
+    $('c-local').classList.add('rec'); pick('local');
+    $('choice-note').textContent = 'You can change this later in Settings, or use both — a small local model for speed and an API for hard questions.';
+  } else if (d.verdict === 'local-limited') {
+    $('c-api').classList.add('rec'); pick('api');
+    $('choice-note').textContent = 'Local will run here, but heavily compressed. Try it if you want free and private; switch to a provider if it feels dim.';
+  } else {
+    $('c-api').classList.add('rec'); pick('api');
+    $('c-local').style.opacity = .45;
+    $('choice-note').textContent = 'Local is still selectable, but expect it to be slow and shallow on this hardware.';
+  }
+}
+
+function pick(which) {
+  CHOICE = which;
+  $('c-local').classList.toggle('on', which === 'local');
+  $('c-api').classList.toggle('on', which === 'api');
+}
+
+async function go() {
+  $('next').textContent = 'SAVING…';
+  try {
+    await fetch('/api/setup', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ choice: CHOICE, recommendation: REC && REC.pick }),
+    });
+  } catch (e) { /* the HUD still works either way */ }
+  location.href = CHOICE === 'api' ? '/settings.html#api' : '/settings.html';
+}
+
+function esc(t) {
+  return String(t == null ? '' : t).replace(/[&<>"']/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+bar(null, 'scanning');
+scan();
+</script>
+</body>
+</html>

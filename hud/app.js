@@ -6,6 +6,8 @@
  */
 
 import { Orb } from './orb.js';
+import { THEMES, applyTheme } from './themes.js';
+import { mountAtmosphere } from './atmosphere.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -26,7 +28,13 @@ async function boot() {
     if (r.ok) cfg = { ...cfg, ...(await r.json()) };
   } catch { /* server not up yet — fall back to defaults, don't blank the screen */ }
 
-  orb = new Orb($('orb'), { count: cfg.orb_density, reduceMotion: cfg.reduce_motion, speed: cfg.orb_speed });
+  const theme = applyTheme(cfg.theme || 'obsidian');
+  mountAtmosphere(theme, { reduceMotion: cfg.reduce_motion });
+  orb = new Orb($('orb'), {
+    count: cfg.orb_density, reduceMotion: cfg.reduce_motion,
+    speed: cfg.orb_speed, variant: cfg.orb_variant || 'lattice',
+    colors: { ...theme.colors, ...(cfg.colors || {}) },
+  });
   window.REGES = window.REGES || {};
   window.REGES.orb = orb;
   window.REGES.setLevel = (v) => orb.setLevel(v);
@@ -89,7 +97,7 @@ function render(s) {
   $('uptime').textContent = fmtUptime(s.uptime_s || 0);
 
   if (s.tokens) renderGauge(s.tokens);
-  if (s.activity) renderLog(s.activity);
+  if (s.activity) { renderLog(s.activity); renderConvo(s.activity); }
   if (s.vitals) renderVitals(s.vitals);
   if (s.caps) {
     setPip('pip-voice', !!s.caps.voice);
@@ -114,7 +122,8 @@ function renderGauge(t) {
   const el = $('tok-local');
   if (el) el.textContent = local ? `  +${local.toLocaleString()} local · free` : '';
   $('tok-pct').textContent = `${t.pct}%`;
-  $('tok-cost').textContent = t.usd > 0 ? `$${t.usd.toFixed(4)}` : '$0.0000';
+  $('tok-cost').textContent = fmtUsd(t.usd);
+  renderSpend(t);
   $('gauge-fill').style.width = Math.min(100, t.pct) + '%';
   const g = $('gauge');
   g.classList.toggle('warn', t.pct >= 80 && t.pct < 100);
@@ -123,7 +132,7 @@ function renderGauge(t) {
 
 /* ── activity log ─────────────────────────────────────────────────────── */
 
-const GLYPH = { tokens: '⧗', warn: '!', error: '✗', skill: '▸', vault: '▪', router: '⌁' };
+const GLYPH = { tokens: '⧗', warn: '!', error: '✗', skill: '▸', vault: '▪', router: '⌁', chat: '»' };
 let lastLogTs = 0;
 
 function renderLog(rows) {
@@ -255,6 +264,7 @@ function wireIntent() {
     if (e.key !== 'Enter' || !input.value.trim()) return;
     send(input.value.trim());
     input.value = '';
+    showPending();
   });
   // Any keystroke that isn't already in a field focuses the intent line.
   document.addEventListener('keydown', (e) => {
@@ -285,3 +295,117 @@ function tickClock() {
 }
 
 boot();
+
+
+/* ── conversation ─────────────────────────────────────────────────────── */
+
+let convoSeen = 0;
+
+function renderConvo(rows) {
+  const box = document.getElementById('convo');
+  if (!box) return;
+
+  const turns = rows.filter((r) => r.chat && r.msg);
+  if (turns.length === convoSeen) return;
+  convoSeen = turns.length;
+
+  const hadPending = !!box.querySelector('.turn.pending');
+  box.innerHTML = turns.slice(-40).map((r) => {
+    const who = r.role === 'user' ? 'you' : 'reges';
+    return `<div class="turn ${who === 'you' ? 'user' : 'reges'}">` +
+           `<div class="who">${who}</div>` +
+           `<div class="said">${escapeHtml(r.msg)}</div></div>`;
+  }).join('');
+
+  box.scrollTop = box.scrollHeight;
+
+  // Only drop the "thinking" line once REGES has actually answered — the
+  // user's own line appearing is not an answer.
+  const last = turns[turns.length - 1];
+  if (hadPending && last && last.role === 'user') showPending();
+}
+
+function escapeHtml(t) {
+  return String(t).replace(/[&<>"']/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
+}
+
+/* Something has to appear the instant you hit enter, or it feels broken while
+   a local model spends four seconds thinking. */
+function showPending() {
+  const box = document.getElementById('convo');
+  if (!box || box.querySelector('.turn.pending')) return;
+  const d = document.createElement('div');
+  d.className = 'turn reges pending';
+  d.innerHTML = '<div class="who">reges</div><div class="said">thinking…</div>';
+  box.appendChild(d);
+  box.scrollTop = box.scrollHeight;
+}
+
+function clearPending() {
+  document.querySelectorAll('#convo .turn.pending').forEach((el) => el.remove());
+}
+
+window.REGES = window.REGES || {};
+window.REGES.showPending = showPending;
+
+
+/* ── money ────────────────────────────────────────────────────────────── */
+
+/* $0.0000 for everything is useless at both ends of the scale. */
+function fmtUsd(v) {
+  v = Number(v) || 0;
+  if (v <= 0) return '$0.00';
+  if (v < 0.01) return '$' + v.toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
+  if (v < 1) return '$' + v.toFixed(3);
+  if (v < 100) return '$' + v.toFixed(2);
+  return '$' + v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function nf(n) { return (Number(n) || 0).toLocaleString(); }
+
+function renderSpend(t) {
+  const box = document.getElementById('spend');
+  if (!box) return;
+  const models = t.models || [];
+  if (!models.length) { box.innerHTML = ''; return; }
+
+  const rows = models.map((m) => {
+    const cls = m.local ? 'free' : (m.priced ? '' : 'est');
+    const right = m.local
+      ? 'free'
+      : fmtUsd(m.usd) + (m.priced ? '' : ' est');
+    return `<div class="r ${cls}">
+        <span class="m">${escapeHtml(m.model)}</span>
+        <span class="v">${nf(m.in)} in · ${nf(m.out)} out${m.cache_read ? ' · ' + nf(m.cache_read) + ' cached' : ''} — ${right}</span>
+      </div>`;
+  }).join('');
+
+  const unpriced = (t.unpriced || []).length;
+  box.innerHTML =
+    `<h4>session spend</h4>${rows}` +
+    `<div class="tot"><span>total</span><span>${fmtUsd(t.usd)}</span></div>` +
+    `<div class="why">Local models run on your hardware and are never charged.` +
+    (unpriced ? ` ${unpriced} model${unpriced > 1 ? 's have' : ' has'} no rate on file — shown as an estimate. Set rates in Settings.` : '') +
+    `</div>`;
+}
+
+(function wireSpend() {
+  const c = document.getElementById('tok-cost');
+  if (!c) return;
+  c.style.cursor = 'pointer';
+  c.addEventListener('click', () => {
+    document.getElementById('spend').classList.toggle('on');
+  });
+  // click anywhere else closes it
+  document.addEventListener('click', (e) => {
+    const box = document.getElementById('spend');
+    if (!box || !box.classList.contains('on')) return;
+    if (e.target === c || box.contains(e.target)) return;
+    box.classList.remove('on');
+  });
+})();
+
+window.REGES = window.REGES || {};
+window.REGES.renderGauge = renderGauge;

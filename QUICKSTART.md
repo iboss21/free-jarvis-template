@@ -51,19 +51,82 @@ python -m reges agent cycle "run the qc gate" --dry-run
 python tests_agent.py                16 tests, no network
 ```
 
+## First run
+
+The first time you open it you get a setup screen, not a cockpit.
+
+It reads your CPU, memory, graphics card and free disk, then tells you in plain
+language what this machine can actually run — and recommends **local** or
+**an AI provider** based on the answer. Nothing downloads until you choose.
+
+Sizes are computed from bits-per-weight, so it works the same on a 4GB laptop
+GPU, a 5090, a DGX Spark, an M-series Mac, or a machine with no GPU at all.
+
+| Machine | Verdict |
+|---|---|
+| GTX 1650 4GB | 4B at Q4_K_M, ~2.3 GB |
+| RTX 3060 / 4070 12GB | 14B at Q5_K_M, ~9.5 GB |
+| RTX 5090 32GB | 30B at Q6_K, ~23.6 GB |
+| DGX Spark 128GB unified | 70B at Q8_0, ~71 GB |
+| MacBook Air M2 8GB | 8B at Q4_K_M, ~4.6 GB |
+| No GPU, 8GB RAM | 4B at Q6_K, ~3.1 GB (slow) |
+
+Re-run it any time at `/welcome.html`.
+
+## Chat
+
+**Chat is the default.** Type anything. If it clearly matches a skill the skill
+runs; otherwise Reges just talks — and the exchange appears on screen above the input line.
+
+```
+you    hi
+reges  Hey. What do you need?
+```
+
+It keeps the last dozen turns of context, so follow-ups work. Voice replies land
+in the same place. Nothing forces you to phrase things as commands.
+
 ## The token meter
 
-The footer shows two numbers and they mean different things:
+Local and paid are counted separately, because only one of them costs money.
+
+```
+TOKENS  110,300   +2,626 LOCAL · FREE   ...   44%   $0.444
+```
 
 | Reading | Meaning |
 |---|---|
-| `TOKENS 0` | **billable** tokens — cloud API calls only |
-| `+1,313 LOCAL · FREE` | tokens on your own hardware. Counted, never priced |
-| `$0.0000` | real spend. Stays at zero as long as you run local |
+| `TOKENS 110,300` | **billable** tokens — paid API calls only |
+| `+2,626 LOCAL · FREE` | tokens on your own hardware. Counted, never priced |
+| `$0.444` | real spend. Click it for the per-model breakdown |
 
-A model on your GPU has no per-token bill, so pricing it would corrupt the one
-number that matters. The session cap also only counts billable tokens — capping
-free local calls protects nothing.
+Click the dollar figure:
+
+```
+SESSION SPEND
+claude-opus-5      12,000 in · 3,400 out · 40,000 cached — $0.165
+claude-sonnet-5    80,000 in · 9,000 out                 — $0.250
+mystery-model-v9    5,000 in ·   900 out                 — $0.029 est
+qwen3-1.7b          1,800 in ·   826 out                 — free
+total                                                      $0.444
+```
+
+Every model is priced at **its own rate**, not one global number. Cached input
+is billed at the cache rate, which is a tenth of standard on the Claude line.
+
+### Rates
+
+Settings → **PRICING**. Built-in rates are dated and only include models whose
+price was actually checked. A model with no rate on file is billed at the
+fallback and marked **est** — never silently priced wrong. Add or override any
+rate there; it writes to `config.toml` as a plain inline table you can hand-edit:
+
+```toml
+[pricing]
+overrides = { "gpt-4o" = { input = 2.5, output = 10.0 } }
+```
+
+Local models are never charged regardless of what any table says.
 
 ## Settings
 
@@ -131,6 +194,26 @@ So on a clean Windows box: `pip install faster-whisper` and voice works. That is
 the whole setup.
 
 Check what it found: Settings → **VOICE**, or `/api/voice/status`.
+
+### Language — read this if voice writes nonsense
+
+**Reges pins English by default.** If you speak something else, set it in
+Settings → VOICE → LANGUAGE before you use the mic.
+
+Whisper auto-detects language from the clip. On a two-second phrase it guesses,
+commits to the guess, and transcribes phonetically into whatever alphabet it
+picked — which is how "hey Jarvis" comes back as Cyrillic. Pinning the language
+removes the guess entirely, and picking English switches to English-only
+weights that *cannot* emit another language.
+
+Measured on the same recording:
+
+| Setting | Result |
+|---|---|
+| auto-detect | `Hey, novice.` |
+| English pinned | `Hey Jarvis.` |
+
+Near-silence now returns nothing instead of an invented sentence.
 
 ### GPU
 
