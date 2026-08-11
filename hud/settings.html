@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>REGES — Settings</title>
+<link rel="stylesheet" href="/styles.css">
+<style>
+  html,body{height:auto;overflow-y:auto;overflow-x:hidden}
+  body{position:relative}
+  .wrap{max-width:1080px;margin:0 auto;padding:28px 24px 120px;position:relative;z-index:2}
+  .top{display:flex;align-items:baseline;justify-content:space-between;
+       border-bottom:1px solid var(--line,#1c2430);padding-bottom:14px;margin-bottom:26px}
+  .top h1{font-size:15px;letter-spacing:.34em;margin:0;font-weight:500}
+  .back{font-size:11px;letter-spacing:.18em;text-decoration:none;opacity:.6}
+  .back:hover{opacity:1}
+  section{margin-bottom:34px}
+  h2{font-size:11px;letter-spacing:.28em;opacity:.5;font-weight:500;margin:0 0 14px;
+     border-bottom:1px solid var(--line,#1c2430);padding-bottom:8px}
+  .row{display:grid;grid-template-columns:180px 1fr;gap:14px;align-items:center;margin-bottom:11px}
+  .row label{font-size:11px;letter-spacing:.14em;opacity:.55}
+  input,select{width:100%;background:#0b0f14;border:1px solid #1c2430;color:inherit;
+    padding:8px 10px;font:inherit;font-size:12px;border-radius:2px}
+  input:focus,select:focus{outline:none;border-color:#2b6cb0}
+  .hint{font-size:11px;opacity:.4;margin-top:5px;grid-column:2}
+  button{background:#101821;border:1px solid #24303d;color:inherit;padding:8px 16px;
+    font:inherit;font-size:11px;letter-spacing:.16em;cursor:pointer;border-radius:2px}
+  button:hover{border-color:#3a4a5c;background:#141d28}
+  button.primary{border-color:#2b6cb0}
+  .bar{display:flex;gap:10px;align-items:center;margin-top:16px;flex-wrap:wrap}
+  .result{font-size:12px;padding:9px 12px;border-radius:2px;margin-top:12px;display:none;
+    border:1px solid #24303d;background:#0b0f14;white-space:pre-wrap;line-height:1.55}
+  .result.ok{border-color:#2f6b45}
+  .result.bad{border-color:#7a3030}
+  .apps{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+  .app{border:1px solid #1c2430;padding:11px 13px;border-radius:2px;background:#0b0f14}
+  .app.off{opacity:.35}
+  .app .n{font-size:12px;letter-spacing:.06em;margin-bottom:3px}
+  .app .m{font-size:10px;opacity:.5;letter-spacing:.1em;text-transform:uppercase}
+  .app .b{margin-top:9px;display:flex;gap:7px}
+  .app button{padding:4px 10px;font-size:10px}
+  .tag{font-size:9px;letter-spacing:.14em;padding:2px 6px;border:1px solid #24303d;
+    border-radius:2px;opacity:.6}
+  .note{font-size:11px;opacity:.45;line-height:1.7;margin-top:10px}
+  .sticky{position:fixed;left:0;right:0;bottom:0;z-index:20;
+    background:linear-gradient(to top,#05080b 60%,rgba(5,8,11,0));
+    padding:16px 24px;display:flex;justify-content:center}
+  .sticky .inner{max-width:1080px;width:100%;display:flex;gap:12px;align-items:center}
+  .modal{position:fixed;inset:0;z-index:200;background:rgba(3,6,9,.86);
+    display:none;align-items:center;justify-content:center;padding:24px}
+  .modal.on{display:flex}
+  .modal .box{max-width:620px;background:#0b0f14;border:1px solid #24303d;
+    padding:22px 24px;border-radius:3px;font-size:12px;line-height:1.75;
+    white-space:pre-wrap}
+  .modal h3{margin:0 0 12px;font-size:11px;letter-spacing:.24em;opacity:.6;font-weight:500}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <h1>R E G E S &nbsp;·&nbsp; SETTINGS</h1>
+    <a class="back" href="/">← BACK TO HUD</a>
+  </div>
+
+  <section>
+    <h2>MODEL — LOCAL</h2>
+    <div class="row">
+      <label>PROVIDER</label>
+      <select id="lp"></select>
+    </div>
+    <div class="row">
+      <label>BASE URL</label>
+      <input id="lurl" spellcheck="false">
+    </div>
+    <div class="row">
+      <label>MODEL</label>
+      <select id="lmodel"></select>
+    </div>
+    <div class="row">
+      <label>MODEL (MANUAL)</label>
+      <input id="lmodel_manual" spellcheck="false" placeholder="leave blank to use the dropdown">
+    </div>
+    <div class="bar">
+      <button id="lfetch">FETCH MODELS</button>
+      <button id="ltest" class="primary">TEST CONNECTION</button>
+    </div>
+    <div class="result" id="lresult"></div>
+    <div class="note" id="lnote"></div>
+  </section>
+
+  <section>
+    <h2>MODEL — API PROVIDER</h2>
+    <div class="row">
+      <label>ENABLED</label>
+      <select id="renabled">
+        <option value="false">off — local only</option>
+        <option value="true">on</option>
+      </select>
+    </div>
+    <div class="row">
+      <label>PROVIDER</label>
+      <select id="rp"></select>
+    </div>
+    <div class="row">
+      <label>API KEY</label>
+      <input id="rkey" type="password" spellcheck="false" placeholder="">
+    </div>
+    <div class="hint">Stored encrypted on this machine. Never sent to the browser once saved.</div>
+    <div class="row">
+      <label>MODEL</label>
+      <select id="rmodel"></select>
+    </div>
+    <div class="row">
+      <label>MODEL (MANUAL)</label>
+      <input id="rmodel_manual" spellcheck="false" placeholder="leave blank to use the dropdown">
+    </div>
+    <div class="bar">
+      <button id="rfetch">FETCH MODELS</button>
+      <button id="rtest" class="primary">TEST CONNECTION</button>
+    </div>
+    <div class="result" id="rresult"></div>
+  </section>
+
+  <section>
+    <h2>ROUTING</h2>
+    <div class="row">
+      <label>ROUTER</label>
+      <select id="router_tier"><option value="local">local</option><option value="remote">api</option></select>
+    </div>
+    <div class="hint">Which model decides what a request is. Cheap and fast — keep it local.</div>
+    <div class="row">
+      <label>REASONING</label>
+      <select id="reasoning_tier"><option value="local">local</option><option value="remote">api</option></select>
+    </div>
+    <div class="hint">Which model does the actual work.</div>
+    <div class="row">
+      <label>OFFLINE FALLBACK</label>
+      <select id="offline_fallback"><option value="true">on — drop to local if the API fails</option><option value="false">off</option></select>
+    </div>
+  </section>
+
+  <section>
+    <h2>VOICE</h2>
+    <div class="row">
+      <label>EARS</label>
+      <span id="v_stt" style="font-size:12px"></span>
+    </div>
+    <div class="row">
+      <label>MOUTH</label>
+      <span id="v_tts" style="font-size:12px"></span>
+    </div>
+    <div class="row">
+      <label>DEVICE</label>
+      <span id="v_dev" style="font-size:12px"></span>
+    </div>
+    <div class="result" id="v_note"></div>
+    <div class="note">
+      Hold SPACE in the HUD to talk. Audio is transcribed on this machine and
+      never uploaded. A detected GPU that cannot load its CUDA runtime falls
+      back to CPU automatically — slower, but it always works.
+    </div>
+  </section>
+
+  <section>
+    <h2>APPEARANCE — NEURAL ORB</h2>
+    <div class="row">
+      <label>SPIN SPEED</label>
+      <input id="orb_speed" type="range" min="0" max="2" step="0.05">
+    </div>
+    <div class="hint" id="orb_speed_v"></div>
+    <div class="row">
+      <label>PARTICLES</label>
+      <input id="orb_density" type="range" min="200" max="2500" step="50">
+    </div>
+    <div class="hint" id="orb_density_v"></div>
+    <div class="row">
+      <label>REDUCE MOTION</label>
+      <select id="reduce_motion">
+        <option value="false">off</option>
+        <option value="true">on — flat ring, no churn</option>
+      </select>
+    </div>
+    <div class="note">
+      Default is one revolution every ~40 seconds. It should read as alive, not
+      as spinning. 0 freezes it entirely.
+    </div>
+  </section>
+
+  <section>
+    <h2>APPLICATIONS</h2>
+    <div class="apps" id="apps"></div>
+    <div class="note">
+      Three tiers of control. <b>Launch</b> is reliable. <b>API</b> means the app has an
+      official control surface — Photoshop UXP, Webull OpenAPI, Discord REST, obs-websocket —
+      and Reges uses that instead of clicking. <b>GUI automation</b> is the last resort:
+      the best measured agents hit 33–64% on live write tasks and desktop is harder than
+      web, so anything irreversible stays behind a confirmation.
+    </div>
+  </section>
+
+</div>
+
+<div class="sticky">
+  <div class="inner">
+    <button id="save" class="primary">SAVE SETTINGS</button>
+    <span id="saved" style="font-size:11px;opacity:.55"></span>
+  </div>
+</div>
+
+<div class="modal" id="modal"><div class="box">
+  <h3 id="modal-title">RESULT</h3>
+  <div id="modal-body"></div>
+  <div style="margin-top:18px"><button onclick="document.getElementById('modal').classList.remove('on')">CLOSE</button></div>
+</div></div>
+
+<script>
+const $ = id => document.getElementById(id);
+let DATA = null;
+
+async function api(path, body) {
+  const opt = body ? {method:'POST', headers:{'Content-Type':'application/json'},
+                      body: JSON.stringify(body)} : {};
+  const r = await fetch(path, opt);
+  return r.json();
+}
+
+function show(el, ok, text) {
+  el.className = 'result ' + (ok ? 'ok' : 'bad');
+  el.textContent = text;
+  el.style.display = 'block';
+}
+
+function fillProviders() {
+  const local = DATA.providers.filter(p => p.kind === 'local');
+  const hosted = DATA.providers.filter(p => p.kind === 'hosted');
+  $('lp').innerHTML = local.map(p => `<option value="${p.id}">${p.label}</option>`).join('');
+  $('rp').innerHTML = hosted.map(p =>
+    `<option value="${p.id}">${p.label}${p.has_key ? ' — key stored' : ''}</option>`).join('');
+}
+
+function providerById(id) { return DATA.providers.find(p => p.id === id); }
+
+function syncLocal() {
+  const p = providerById($('lp').value);
+  if (p && !$('lurl').value) $('lurl').value = p.base_url;
+  $('lnote').textContent = p && p.note ? p.note : '';
+}
+
+async function fetchModels(which) {
+  const isLocal = which === 'l';
+  const provider = isLocal ? $('lp').value : $('rp').value;
+  const base_url = isLocal ? $('lurl').value : '';
+  const api_key  = isLocal ? '' : $('rkey').value;
+  const sel = $(isLocal ? 'lmodel' : 'rmodel');
+  const res = await api('/api/models', {provider, base_url, api_key});
+  if (res.ok && res.models.length) {
+    sel.innerHTML = res.models.map(m => `<option value="${m}">${m}</option>`).join('');
+    show($(isLocal ? 'lresult' : 'rresult'), true, `${res.models.length} models found`);
+  } else {
+    sel.innerHTML = '<option value="">— none —</option>';
+    show($(isLocal ? 'lresult' : 'rresult'), false,
+         res.error || 'no models returned. Type the model id manually below.');
+  }
+}
+
+async function testConn(which) {
+  const isLocal = which === 'l';
+  const provider = isLocal ? $('lp').value : $('rp').value;
+  const model = (isLocal ? ($('lmodel_manual').value || $('lmodel').value)
+                         : ($('rmodel_manual').value || $('rmodel').value));
+  const body = {provider, model,
+                base_url: isLocal ? $('lurl').value : '',
+                api_key:  isLocal ? '' : $('rkey').value};
+  const el = $(isLocal ? 'lresult' : 'rresult');
+  show(el, true, 'testing…');
+  const r = await api('/api/test', body);
+  if (r.ok) {
+    show(el, true,
+      `OK  ${r.latency_ms}ms\nreply: ${r.reply || '(empty)'}\ntokens in/out: ${r.tokens_in}/${r.tokens_out}`);
+  } else {
+    show(el, false, `FAILED\n${r.error}`);
+  }
+}
+
+async function loadApps() {
+  const r = await api('/api/apps');
+  $('apps').innerHTML = r.apps.map(a => `
+    <div class="app ${a.installed ? '' : 'off'}">
+      <div class="n">${a.label}</div>
+      <div class="m">${a.category} · <span class="tag">${a.control === 'api' ? 'API' : 'LAUNCH'}</span>
+        ${a.installed ? '' : ' · not found'}</div>
+      ${a.installed ? `<div class="b">
+        <button onclick="appAct('${a.id}','launch')">LAUNCH</button>
+        <button onclick="appAct('${a.id}','plan')">HOW</button>
+      </div>` : ''}
+    </div>`).join('');
+}
+
+function modal(title, body) {
+  $('modal-title').textContent = title;
+  $('modal-body').textContent = body;
+  $('modal').classList.add('on');
+}
+
+async function appAct(app, action) {
+  const r = await api('/api/apps/action', {app, action});
+  if (action === 'plan') {
+    modal(`CONTROL PLAN — TIER ${r.tier}`,
+      `${r.surface || ''}\n\n${r.reason}${r.caveat ? '\n\n' + r.caveat : ''}`);
+  } else {
+    modal(r.ok ? 'LAUNCHED' : 'FAILED', JSON.stringify(r, null, 2));
+  }
+}
+
+async function save() {
+  const cur = {
+    local_provider: $('lp').value,
+    local_base_url: $('lurl').value,
+    local_model: $('lmodel_manual').value || $('lmodel').value,
+    remote_enabled: $('renabled').value === 'true',
+    remote_provider: $('rp').value,
+    remote_model: $('rmodel_manual').value || $('rmodel').value,
+    router_tier: $('router_tier').value,
+    reasoning_tier: $('reasoning_tier').value,
+    offline_fallback: $('offline_fallback').value === 'true',
+  };
+  const body = {current: cur, appearance: {
+    orb_speed: parseFloat($('orb_speed').value),
+    orb_density: parseInt($('orb_density').value, 10),
+    reduce_motion: $('reduce_motion').value === 'true',
+  }};
+  if ($('rkey').value) { body.api_key = $('rkey').value; body.api_key_provider = $('rp').value; }
+  const r = await api('/api/settings', body);
+  $('saved').textContent = r.ok ? `saved → ${r.saved_to}` : `failed: ${r.error}`;
+  if (r.ok) {
+    $('rkey').value = '';
+    setTimeout(() => { $('saved').textContent = ''; }, 6000);
+  }
+}
+
+(async function init() {
+  DATA = await api('/api/settings');
+  fillProviders();
+  const c = DATA.current;
+  $('lp').value = c.local_provider || 'lmstudio';
+  $('lurl').value = c.local_base_url || '';
+  $('lmodel_manual').value = c.local_model || '';
+  $('renabled').value = String(!!c.remote_enabled);
+  $('rp').value = c.remote_provider || 'anthropic';
+  $('rmodel_manual').value = c.remote_model || '';
+  $('router_tier').value = c.router_tier || 'local';
+  $('reasoning_tier').value = c.reasoning_tier || 'remote';
+  $('offline_fallback').value = String(!!c.offline_fallback);
+
+  const ap = DATA.appearance || {orb_speed: 1, orb_density: 900, reduce_motion: false};
+  $('orb_speed').value = ap.orb_speed;
+  $('orb_density').value = ap.orb_density;
+  $('reduce_motion').value = String(!!ap.reduce_motion);
+  const showOrb = () => {
+    const sp = parseFloat($('orb_speed').value);
+    const secs = sp > 0 ? Math.round(40 / sp) : 0;
+    $('orb_speed_v').textContent =
+      sp === 0 ? '0 — frozen' : `${sp.toFixed(2)}× — one revolution every ~${secs}s`;
+    $('orb_density_v').textContent = `${$('orb_density').value} particles`;
+  };
+  $('orb_speed').oninput = showOrb;
+  $('orb_density').oninput = showOrb;
+  showOrb();
+
+  syncLocal();
+
+  $('lp').onchange = () => { $('lurl').value = providerById($('lp').value).base_url; syncLocal(); };
+  $('lfetch').onclick = () => fetchModels('l');
+  $('rfetch').onclick = () => fetchModels('r');
+  $('ltest').onclick  = () => testConn('l');
+  $('rtest').onclick  = () => testConn('r');
+  $('save').onclick   = save;
+  loadApps();
+  loadVoice();
+})();
+
+async function loadVoice() {
+  let v;
+  try { v = await api('/api/voice/status'); } catch { return; }
+  const on = (list) => (list.filter(x => x.available).map(x => x.label).join(', ') || 'none');
+  $('v_stt').textContent = v.can_listen
+    ? `${v.stt_active}  (available: ${on(v.stt)})`
+    : 'none — pip install faster-whisper';
+  $('v_tts').textContent = `${v.tts_active}  (available: ${on(v.tts)})`;
+  $('v_dev').textContent = v.gpu_detected
+    ? `${v.device.toUpperCase()}  · GPU detected`
+    : `${(v.device || 'cpu').toUpperCase()}  · no GPU detected`;
+  if (v.cuda_note) show($('v_note'), false, v.cuda_note);
+}
+window.appAct = appAct;
+</script>
+</body>
+</html>

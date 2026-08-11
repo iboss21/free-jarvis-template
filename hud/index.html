@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>REGES</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="shell">
+
+  <header class="topbar"><a href="/settings.html" style="font-size:10px;letter-spacing:.18em;text-decoration:none;opacity:.5;margin-left:14px" title="settings">SETTINGS</a>
+    <div class="wordmark">R<span>.</span>E<span>.</span>G<span>.</span>E<span>.</span>S</div>
+    <nav class="pips">
+      <div class="pip" id="pip-core"><i></i>core</div>
+      <div class="pip" id="pip-link"><i></i>link</div>
+      <div class="pip" id="pip-voice"><i></i>voice</div>
+      <div class="pip" id="pip-vault"><i></i>vault</div>
+    </nav>
+    <div class="clock" id="clock">--:--<small id="secs">:--</small></div>
+  </header>
+
+  <aside class="rail left">
+    <div class="sect">system vitals <em id="uptime">—</em></div>
+    <div id="vitals"></div>
+
+    <div class="sect">directives</div>
+    <div class="log" id="directives"></div>
+  </aside>
+
+  <main class="mid">
+    <canvas id="orb"></canvas>
+
+    <div class="state-read">
+      <div class="state-name" id="state-name">idle</div>
+      <div class="state-label" id="state-label"></div>
+    </div>
+
+    <div class="intent">
+      <span>&rsaquo;</span>
+      <input id="intent" type="text" autocomplete="off" spellcheck="false"
+             placeholder="speak, or type an intent">
+      <kbd id="ptt-hint">ctrl+alt+space</kbd>
+    </div>
+  </main>
+
+  <aside class="rail right">
+    <div class="sect">command deck <em id="deck-status">idle</em></div>
+    <div class="deck" id="deck"></div>
+
+    <div class="sect">schedule <em id="today-date"></em></div>
+    <div id="schedule"></div>
+
+    <div class="sect">activity</div>
+    <div class="log" id="log"></div>
+  </aside>
+
+  <footer class="gauge" id="gauge">
+    <span>tokens</span>
+    <b id="tok-count">0</b>
+    <span class="cost" id="tok-local" title="tokens on your own hardware"></span>
+    <div class="gauge-track"><div class="gauge-fill" id="gauge-fill"></div></div>
+    <b id="tok-pct">0%</b>
+    <span class="cost" id="tok-cost">$0.0000</span>
+  </footer>
+
+</div>
+<script type="module" src="app.js"></script>
+  <script src="/voice.js"></script>
+</body>
+</html>

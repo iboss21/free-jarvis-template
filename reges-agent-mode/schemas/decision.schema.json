@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "cycle_decision",
+  "type": "object",
+  "required": ["cycle", "role", "decision", "reason", "confidence"],
+  "properties": {
+    "cycle":    { "type": "string", "maxLength": 64 },
+    "role":     { "type": "string", "enum": ["BOARD","OPERATOR","VENTURE","WORKER"] },
+    "decision": { "type": "string", "enum": ["act","split","halt","need_knowledge","reverify","escalate"] },
+    "intents": {
+      "type": "array", "maxItems": 8,
+      "items": {
+        "type": "object",
+        "required": ["type","idem_key","evidence","reversible"],
+        "properties": {
+          "type":       { "type": "string", "maxLength": 48 },
+          "idem_key":   { "type": "string", "maxLength": 64 },
+          "args":       { "type": "object" },
+          "evidence":   { "type": "array", "maxItems": 12, "items": { "type": "string", "maxLength": 48 } },
+          "reversible": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "fields":     { "type": "object" },
+    "reason":     { "type": "string", "maxLength": 2000 },
+    "confidence": { "type": "string", "enum": ["high","medium","low"] }
+  },
+  "additionalProperties": false
+}
