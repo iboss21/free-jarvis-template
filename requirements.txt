@@ -1,0 +1,8 @@
+# Reges core runs on the standard library alone. That is deliberate: the fewer
+# things that can fail to install on a fresh Windows box, the better the first
+# impression of the installer.
+#
+# Everything below is optional and only needed for voice.
+
+sounddevice>=0.4.6   # microphone capture for push-to-talk
+keyboard>=0.13.5     # global PTT hotkey (needs admin on some Windows setups)
